@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "16348403087",
+    "project_id": "tourvn-mobile-2026",
+    "storage_bucket": "tourvn-mobile-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16348403087:android:1339cd926438eff43e27fa",
+        "android_client_info": {
+          "package_name": "com.tourvn.tour_vn"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvTjh-wHQ692CduXxAnST4D3GZQ7sNvl8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
