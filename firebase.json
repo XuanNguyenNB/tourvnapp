@@ -1,1 +1,28 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"tourvn-mobile-2026","appId":"1:16348403087:android:1339cd926438eff43e27fa","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"tourvn-mobile-2026","configurations":{"android":"1:16348403087:android:1339cd926438eff43e27fa","ios":"1:16348403087:ios:0b3dbdf595f963163e27fa"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "tourvn-mobile-2026",
+          "appId": "1:16348403087:android:1339cd926438eff43e27fa",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "tourvn-mobile-2026",
+          "configurations": {
+            "android": "1:16348403087:android:1339cd926438eff43e27fa",
+            "ios": "1:16348403087:ios:0b3dbdf595f963163e27fa"
+          }
+        }
+      }
+    }
+  }
+}

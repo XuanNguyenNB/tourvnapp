@@ -12,7 +12,20 @@
           "package_name": "com.tourvn.tour_vn"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "16348403087-2pjbb47i6dpse7sd6hk110eg1p6790jc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tourvn.tour_vn",
+            "certificate_hash": "a81d4c9e7e1d3701c17082359cfdb350cadd3b32"
+          }
+        },
+        {
+          "client_id": "16348403087-cobfs448usi87eboocrdemfelal4g6mc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCvTjh-wHQ692CduXxAnST4D3GZQ7sNvl8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "16348403087-cobfs448usi87eboocrdemfelal4g6mc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "16348403087-if9gfrmdn936tfcobbore6s884mibq8j.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.tourvn.tourVn"
+              }
+            }
+          ]
         }
       }
     }

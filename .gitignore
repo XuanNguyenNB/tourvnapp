@@ -62,3 +62,30 @@ ui-debug.log
 # lib/firebase_options.dart
 # android/app/google-services.json
 # ios/Runner/GoogleService-Info.plist
+
+# Android build directory
+/android/build/
+
+# Temporary analysis and test output files
+analyze*.txt
+analyze_helper.dart
+analyze_res.txt
+dart_analyze_trip.txt
+errors.txt
+firebase_output.txt
+machine.txt
+test_out.txt
+test_output.*
+test_firestore_output.txt
+test_gemini.dart
+test_gemini_3.dart
+test_gemini_http.dart
+get_models.dart
+clean_tests.py
+fix_tests.py
+
+# Node modules (for Firebase functions)
+functions/node_modules/
+
+# Migration scripts (contain sensitive config)
+scripts/

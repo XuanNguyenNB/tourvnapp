@@ -1,0 +1,143 @@
+rules_version = '2';
+
+// TourVN - Firestore Security Rules
+// Last updated: 2026-01-26
+// Version: 1.0.0
+//
+// Security Philosophy:
+// - Users can only access their own trips
+// - Destinations, locations, reviews are public read
+// - Admin collections require admin custom claim
+// - All rules deny by default for security
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================
+    // HELPER FUNCTIONS
+    // ========================================
+    
+    /// Check if user is authenticated (signed in)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    /// Check if user is admin (has admin custom claim)
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+    
+    /// Check if user owns the resource (userId matches)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    /// Validate required fields exist in data
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+    
+    // ========================================
+    // USER TRIPS - PRIVATE (Owner-only access)
+    // ========================================
+    
+    // User trips are stored in subcollection: users/{userId}/trips/{tripId}
+    match /users/{userId} {
+      // User profile: Owner can read/write, Admin can read all users
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
+      
+      match /trips/{tripId} {
+        // Only trip owner can read/write their own trips
+        allow read: if isOwner(userId);
+        
+        // Create: Must be authenticated and userId matches
+        allow create: if isOwner(userId) 
+                      && hasRequiredFields(request.resource.data, ['name', 'userId', 'days'])
+                      && request.resource.data.userId == userId;
+        
+        // Update: Must be owner
+        allow update: if isOwner(userId)
+                      && request.resource.data.userId == userId; // Prevent userId change
+        
+        // Delete: Must be owner
+        allow delete: if isOwner(userId);
+      }
+      
+      // User interaction events for recommendation engine
+      // Schema: users/{userId}/events/{eventId}
+      match /events/{eventId} {
+        // Only event owner can read their own events
+        allow read: if isOwner(userId);
+        
+        // Create: Owner can log new events
+        allow create: if isOwner(userId);
+        
+        // Update/Delete: Owner can manage their events
+        allow update, delete: if isOwner(userId);
+      }
+    }
+    
+    // ========================================
+    // PUBLIC CONTENT - Read-only for users
+    // ========================================
+    
+    // Destinations: Public read, authenticated write (for seeding)
+    match /destinations/{destId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Locations: Public read, authenticated write (for seeding)
+    match /locations/{locId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Reviews: Public read, authenticated write (for seeding)
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Categories: Public read, authenticated write
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // ========================================
+    // ADMIN-ONLY COLLECTIONS
+    // ========================================
+    
+    // Admin Dashboard - Destinations Management
+    match /adminDestinations/{destId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Admin Dashboard - Locations Management
+    match /adminLocations/{locId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Admin Dashboard - Reviews Management
+    match /adminReviews/{reviewId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Admin Dashboard - Analytics/Stats
+    match /adminStats/{statId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // ========================================
+    // DENY ALL OTHER ACCESS
+    // ========================================
+    
+    // Explicitly deny access to any other collections
+    // This is default behavior, but making it explicit for clarity
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
