@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,6 +7,7 @@ import '../../domain/entities/location.dart';
 import '../providers/location_provider.dart';
 import '../../../../core/widgets/shimmer_placeholder.dart';
 import '../../../../core/widgets/gradient_button.dart';
+import '../../../../core/services/map_launcher_service.dart';
 import '../../../trip/presentation/widgets/add_to_trip_gesture_wrapper.dart';
 import '../../../trip/presentation/widgets/day_picker_bottom_sheet.dart';
 import '../../../recommendation/presentation/providers/recommendation_provider.dart';
@@ -233,6 +235,15 @@ class _LocationDetailContentState
             ),
           );
         }),
+        if (location.hasCoordinates)
+          _buildActionButton(Icons.map_outlined, () {
+            HapticFeedback.lightImpact();
+            const MapLauncherService().openLocationInMap(
+              location.latitude!,
+              location.longitude!,
+              label: location.name,
+            );
+          }),
         _buildActionButton(Icons.share_outlined, () {}),
         const SizedBox(width: 8),
       ],
@@ -391,6 +402,45 @@ class _LocationDetailContentState
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        // Map button - only show when location has GPS coordinates
+        if (location.hasCoordinates) ...[
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              const MapLauncherService().openLocationInMap(
+                location.latitude!,
+                location.longitude!,
+                label: location.name,
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.map_outlined, size: 18, color: Color(0xFF2563EB)),
+                  SizedBox(width: 8),
+                  Text(
+                    'Xem trên bản đồ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.open_in_new, size: 14, color: Color(0xFF2563EB)),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 12),
         ],

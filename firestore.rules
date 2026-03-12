@@ -94,10 +94,39 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
     
+    // ========================================
+    // COLLECTION GROUP RULES (for admin queries)
+    // ========================================
+    
+    // Allow admin to query ALL comments across reviews via collectionGroup
+    match /{path=**}/comments/{commentId} {
+      allow read: if isAdmin();
+    }
+    
     // Reviews: Public read, authenticated write (for seeding)
     match /reviews/{reviewId} {
       allow read: if true;
       allow write: if isAuthenticated();
+      
+      // Comments subcollection: reviews/{reviewId}/comments/{commentId}
+      // Moderation flow: user posts → auto-flagged if profanity → admin reviews
+      match /comments/{commentId} {
+        // Anyone can read comments (public reviews)
+        // Note: App-level filtering ensures only 'approved' shown to users
+        allow read: if true;
+        
+        // Authenticated users can create comments
+        allow create: if isAuthenticated();
+        
+        // Admin can update comment status (approve/reject moderation)
+        // Comment owner can update their own comments
+        allow update: if isAdmin() 
+                      || (isAuthenticated() && resource.data.userId == request.auth.uid);
+        
+        // Admin or comment owner can delete
+        allow delete: if isAdmin()
+                      || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      }
     }
     
     // Categories: Public read, authenticated write

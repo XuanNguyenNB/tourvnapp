@@ -97,7 +97,7 @@ class AdminOverviewScreen extends ConsumerWidget {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: 24,
                 mainAxisSpacing: 24,
-                childAspectRatio: 1.6,
+                childAspectRatio: crossAxisCount == 1 ? 2.5 : 1.3,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
@@ -128,6 +128,13 @@ class AdminOverviewScreen extends ConsumerWidget {
                     icon: Icons.article_outlined,
                     color: const Color(0xFF8B5CF6),
                     trend: '+18%',
+                  ),
+                  _StatCard(
+                    title: 'Bình luận chờ duyệt',
+                    value: stats.pendingComments.toString(),
+                    icon: Icons.comment_outlined,
+                    color: const Color(0xFFEF4444),
+                    trend: '',
                   ),
                 ],
               );
@@ -311,7 +318,7 @@ class _StatCard extends StatelessWidget {
         ],
         border: Border.all(color: Colors.grey.withValues(alpha: 0.1), width: 1),
       ),
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

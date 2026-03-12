@@ -9,6 +9,7 @@ import '../../../home/domain/entities/review_preview.dart';
 import '../../../../core/widgets/shimmer_placeholder.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../widgets/animated_heart_button.dart';
+import '../widgets/comment_section.dart';
 import '../../../trip/presentation/widgets/add_to_trip_gesture_wrapper.dart';
 import '../../../trip/presentation/widgets/day_picker_bottom_sheet.dart';
 import '../../../../core/router/app_router.dart';
@@ -437,6 +438,10 @@ class _ReviewDetailContent extends ConsumerWidget {
                       _RelatedLocationsSection(
                         locationIds: review.relatedLocationIds,
                       ),
+                      const SizedBox(height: 32),
+                      // Comment section
+                      CommentSection(reviewId: review.id),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),

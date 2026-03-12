@@ -29,6 +29,7 @@ import 'package:tour_vn/features/admin/presentation/screens/manage_destinations_
 import 'package:tour_vn/features/admin/presentation/screens/manage_locations_screen.dart';
 import 'package:tour_vn/features/admin/presentation/screens/manage_categories_screen.dart';
 import 'package:tour_vn/features/admin/presentation/screens/manage_reviews_screen.dart';
+import 'package:tour_vn/features/admin/presentation/screens/manage_comments_screen.dart';
 import 'package:tour_vn/features/admin/presentation/screens/import_json_screen.dart';
 import 'package:tour_vn/features/admin/presentation/screens/ai_content_hub_screen.dart';
 
@@ -285,6 +286,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/admin/reviews',
             name: 'admin-reviews',
             builder: (context, state) => const ManageReviewsScreen(),
+            redirect: (context, state) => _adminGuard(ref),
+          ),
+          GoRoute(
+            path: '/admin/comments',
+            name: 'admin-comments',
+            builder: (context, state) => const ManageCommentsScreen(),
             redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(

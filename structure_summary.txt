@@ -1,0 +1,592 @@
+core_widgets_demo_screen.dart:
+  CoreWidgetsDemoScreen
+  _CoreWidgetsDemoScreenState
+firebase_options.dart:
+  DefaultFirebaseOptions
+main.dart:
+  MyApp
+  _MyAppState
+theme_demo_screen.dart:
+  ThemeDemoScreen
+core\config\app_config.dart:
+  AppConfig
+core\config\app_flags.dart:
+  AppFlags
+core\config\destination_distances.dart:
+  for
+  DestinationDistances
+core\examples\error_handling_example.dart:
+  _FirestoreReadExample
+  _FirestoreWriteExample
+  _AuthErrorHandlingExample
+  _ExampleNotifier
+  _ValidationExample
+  _TripRepository
+core\exceptions\app_exception.dart:
+  for
+  AppException
+core\router\app_router.dart:
+  AppRoutes
+core\router\not_found_screen.dart:
+  NotFoundScreen
+core\router\scaffold_with_nav_bar.dart:
+  ScaffoldWithNavBar
+  _FloatingNavBar
+  for
+  _NavItemData
+  _NavItem
+core\services\image_upload_service_stub.dart:
+  ImageUploadService
+  PickedImage
+core\services\image_upload_service_web.dart:
+  ImageUploadService
+  PickedImage
+core\services\location_service.dart:
+  LocationService
+  LocationPermissionStatus
+core\services\onboarding_service.dart:
+  OnboardingService
+core\theme\app_colors.dart:
+  defines
+  AppColors
+core\theme\app_gradients.dart:
+  defines
+  AppGradients
+core\theme\app_radius.dart:
+  defines
+  AppRadius
+core\theme\app_shadows.dart:
+  defines
+  AppShadows
+core\theme\app_spacing.dart:
+  defines
+  AppSpacing
+core\theme\app_theme.dart:
+  configures
+  AppTheme
+core\theme\app_typography.dart:
+  defines
+  AppTypography
+core\utils\distance_calculator.dart:
+  for
+  DistanceCalculator
+core\utils\vietnamese_text_utils.dart:
+  VietnameseTextUtils
+core\widgets\app_error_widget.dart:
+  AppErrorWidget
+core\widgets\glass_card.dart:
+  GlassCard
+core\widgets\gradient_button.dart:
+  GradientButton
+core\widgets\shimmer_placeholder.dart:
+  ShimmerPlaceholder
+features\admin\domain\services\ai_content_service.dart:
+  AiContentService
+features\admin\presentation\providers\admin_ai_content_provider.dart:
+  AiContentState
+  AiContentNotifier
+features\admin\presentation\providers\admin_category_provider.dart:
+  AdminCategoryNotifier
+features\admin\presentation\providers\admin_destination_provider.dart:
+  AdminDestinationNotifier
+features\admin\presentation\providers\admin_import_provider.dart:
+  ParsedImportData
+  ImportProgress
+  ImportState
+  ImportIdle
+  ImportParsing
+  ImportParsed
+  ImportInProgress
+  ImportSuccess
+  ImportError
+  AdminImportNotifier
+features\admin\presentation\providers\admin_location_provider.dart:
+  AdminLocationNotifier
+  SelectedDestinationFilterNotifier
+features\admin\presentation\providers\admin_review_provider.dart:
+  AdminReviewNotifier
+features\admin\presentation\providers\admin_stats_provider.dart:
+  AdminStats
+features\admin\presentation\providers\paginated_admin_provider.dart:
+  PaginatedState
+features\admin\presentation\screens\admin_layout_screen.dart:
+  AdminLayoutScreen
+features\admin\presentation\screens\admin_overview_screen.dart:
+  AdminOverviewScreen
+  _StatCard
+features\admin\presentation\screens\ai_content_hub_screen.dart:
+  AiContentHubScreen
+  _AiContentHubScreenState
+  _PendingCard
+features\admin\presentation\screens\import_json_screen.dart:
+  ImportJsonScreen
+features\admin\presentation\screens\manage_categories_screen.dart:
+  ManageCategoriesScreen
+features\admin\presentation\screens\manage_destinations_screen.dart:
+  ManageDestinationsScreen
+  _ManageDestinationsScreenState
+features\admin\presentation\screens\manage_locations_screen.dart:
+  ManageLocationsScreen
+  _ManageLocationsScreenState
+features\admin\presentation\screens\manage_reviews_screen.dart:
+  ManageReviewsScreen
+  _ManageReviewsScreenState
+features\admin\presentation\widgets\admin_custom_sidebar.dart:
+  AdminSidebarItem
+  AdminCustomSidebar
+  _AdminCustomSidebarState
+features\admin\presentation\widgets\category_form_dialog.dart:
+  CategoryFormDialog
+  _CategoryFormDialogState
+features\admin\presentation\widgets\destination_form_dialog.dart:
+  DestinationFormDialog
+  _DestinationFormDialogState
+features\admin\presentation\widgets\location_form_dialog.dart:
+  LocationFormDialog
+  _LocationFormDialogState
+features\admin\presentation\widgets\review_form_dialog.dart:
+  ReviewFormDialog
+  _ReviewFormDialogState
+features\auth\data\repositories\auth_repository.dart:
+  AuthRepository
+features\auth\data\repositories\user_repository.dart:
+  UserRepository
+features\auth\domain\entities\user.dart:
+  User
+features\auth\presentation\providers\auth_provider.dart:
+  AuthNotifier
+features\auth\presentation\screens\login_screen.dart:
+  LoginScreen
+  _LoginScreenState
+features\auth\presentation\widgets\facebook_sign_in_button.dart:
+  FacebookSignInButton
+  _FacebookLogo
+features\auth\presentation\widgets\google_sign_in_button.dart:
+  GoogleSignInButton
+  _GoogleLogo
+  _GoogleLogoPainter
+features\auth\presentation\widgets\sign_in_prompt_bottom_sheet.dart:
+  SignInPromptBottomSheet
+  _SignInPromptBottomSheetState
+features\destination\data\repositories\category_repository.dart:
+  CategoryRepository
+features\destination\data\repositories\destination_repository.dart:
+  DestinationRepository
+features\destination\domain\entities\category.dart:
+  Category
+features\destination\domain\entities\destination.dart:
+  Destination
+features\destination\domain\entities\location.dart:
+  Location
+features\destination\presentation\providers\location_provider.dart:
+  SelectedCategoryNotifier
+features\destination\presentation\screens\destination_hub_screen.dart:
+  DestinationHubScreen
+  _DestinationHubContent
+features\destination\presentation\screens\location_detail_screen.dart:
+  LocationDetailScreen
+  _LocationDetailContent
+  _LocationDetailContentState
+features\destination\presentation\widgets\location_card.dart:
+  LocationCard
+features\destination\presentation\widgets\sticky_tab_bar.dart:
+  StickyTabBarDelegate
+  CategoryTabChip
+  CategoryTabsRow
+features\example\data\repositories\example_repository.dart:
+  ExampleRepository
+features\example\domain\entities\example_item.dart:
+  ExampleItem
+features\example\presentation\providers\example_provider.dart:
+  ExampleItemsNotifier
+features\example\presentation\screens\example_screen.dart:
+  ExampleScreen
+features\explore\presentation\screens\explore_screen.dart:
+  ExploreScreen
+features\home\domain\entities\content_item.dart:
+  representing
+  pattern
+  ContentItem
+  DestinationContent
+  ReviewContent
+features\home\domain\entities\destination_preview.dart:
+  DestinationPreview
+features\home\domain\entities\review_preview.dart:
+  ReviewPreview
+features\home\domain\utils\category_filter_helper.dart:
+  for
+  CategoryFilterHelper
+  should
+  containing
+  CategoryData
+features\home\domain\utils\destination_emoji_helper.dart:
+  for
+  DestinationEmojiHelper
+  should
+features\home\domain\utils\search_relevance_scorer.dart:
+  SearchRelevanceScorer
+  for
+  _ScoredLocation
+features\home\presentation\providers\category_filter_provider.dart:
+  CategoryFilterState
+  CategoryFilterNotifier
+features\home\presentation\providers\destination_filter_provider.dart:
+  DestinationFilterState
+  DestinationFilterNotifier
+features\home\presentation\providers\distance_provider.dart:
+  for
+  DistanceCalculator
+features\home\presentation\providers\filtered_home_content_provider.dart:
+  FilteredHomeContentNotifier
+  to
+  _ScoredContent
+features\home\presentation\providers\home_filter_provider.dart:
+  HomeFilterState
+features\home\presentation\providers\home_provider.dart:
+  TrendingCategory
+features\home\presentation\providers\home_recommendation_provider.dart:
+  HomeRecParams
+features\home\presentation\providers\location_search_provider.dart:
+  for
+  LocationSearchState
+  LocationSearchNotifier
+features\home\presentation\providers\user_location_provider.dart:
+  UserLocationNotifier
+  UserLocationState
+features\home\presentation\screens\home_screen.dart:
+  HomeScreen
+  _HomeScreenState
+  _DelayedEmptyState
+  _DelayedEmptyStateState
+features\home\presentation\widgets\bento_grid.dart:
+  BentoGrid
+  for
+  _TileSize
+features\home\presentation\widgets\category_chip.dart:
+  CategoryChip
+features\home\presentation\widgets\category_chips_row.dart:
+  CategoryChipsRow
+features\home\presentation\widgets\destination_card.dart:
+  DestinationCard
+features\home\presentation\widgets\destination_pill.dart:
+  DestinationPill
+features\home\presentation\widgets\destination_pills_row.dart:
+  DestinationPillsRow
+  _ShimmerPill
+  _ShimmerPillState
+features\home\presentation\widgets\distance_badge.dart:
+  DistanceBadge
+  DistanceBadgeStyle
+  DistancePlaceholder
+features\home\presentation\widgets\distance_filter_chips.dart:
+  DistanceFilterChips
+  DistanceFilter
+  DistanceFilterExtension
+features\home\presentation\widgets\home_recommended_section.dart:
+  HomeRecommendedSection
+  _RecommendedSectionResolver
+  _HomeRecommendedCard
+  _ShimmerRecommendedCard
+features\home\presentation\widgets\home_search_bar.dart:
+  HomeSearchBar
+features\home\presentation\widgets\location_permission_dialog.dart:
+  LocationPermissionDialog
+  LocationPermissionBanner
+features\home\presentation\widgets\review_card.dart:
+  ReviewCard
+  _ReviewCardState
+features\home\presentation\widgets\search_bar_widget.dart:
+  SearchBarWidget
+  _SearchBarWidgetState
+features\home\presentation\widgets\search_results_overlay.dart:
+  SearchResultsOverlay
+features\home\presentation\widgets\search_result_item.dart:
+  SearchResultItem
+features\home\presentation\widgets\suggestion_chips_row.dart:
+  SuggestionFilterType
+  SuggestionData
+  SuggestionChipsRow
+  _SuggestionChipsRowState
+features\home\presentation\widgets\trending_pill.dart:
+  TrendingPill
+features\itinerary\domain\models\auto_plan_request.dart:
+  AutoPlanRequest
+features\itinerary\domain\models\itinerary_constraints.dart:
+  ItineraryConstraints
+features\itinerary\domain\services\auto_plan_service.dart:
+  AiScheduleRow
+  AiScheduleTable
+  AutoPlanWarning
+  TravelLeg
+  AutoPlanStop
+  AutoPlanDay
+  AutoPlanResult
+  AutoPlanService
+features\itinerary\domain\services\itinerary_service.dart:
+  GeneratedDay
+  GeneratedSlot
+  ItineraryService
+features\itinerary\domain\services\llm_enrichment_service.dart:
+  LlmEnrichmentService
+features\itinerary\domain\utils\geo_utils.dart:
+  GeoUtils
+features\itinerary\presentation\providers\auto_plan_provider.dart:
+  for
+  AutoPlanState
+  AutoPlanNotifier
+features\itinerary\presentation\providers\itinerary_provider.dart:
+  for
+  ItineraryGenerationState
+  ItineraryGenerationNotifier
+features\itinerary\presentation\screens\ai_plan_screen.dart:
+  AiPlanScreen
+  _AiPlanScreenState
+  _DestinationTile
+features\itinerary\presentation\widgets\auto_generate_sheet.dart:
+  AutoGenerateSheet
+  _AutoGenerateSheetState
+  _PreviewResults
+features\itinerary\presentation\widgets\auto_plan_sheet.dart:
+  AutoPlanSheet
+  _AutoPlanSheetState
+features\onboarding\domain\entities\mood.dart:
+  ti
+  Mood
+  name
+features\onboarding\presentation\providers\destination_selection_provider.dart:
+  DestinationSelectionState
+  DestinationSelectionNotifier
+features\onboarding\presentation\providers\mood_selection_provider.dart:
+  MoodSelectionState
+  MoodSelectionNotifier
+features\onboarding\presentation\providers\onboarding_notifier.dart:
+  OnboardingCompletionState
+  OnboardingNotifier
+features\onboarding\presentation\screens\mood_selection_screen.dart:
+  MoodSelectionScreen
+  _MoodSelectionScreenState
+  _DestinationCard
+features\onboarding\presentation\widgets\mood_chip.dart:
+  MoodChip
+features\profile\domain\entities\user_stats.dart:
+  UserStats
+features\profile\presentation\providers\profile_providers.dart:
+  TripMini
+features\profile\presentation\screens\profile_screen.dart:
+  ProfileScreen
+  _UserInfoSection
+  _StatsSection
+  _AnonymousUserSection
+  _BenefitsList
+  _BenefitItem
+  _SignOutButton
+  _SignInButton
+features\profile\presentation\widgets\profile_settings_section.dart:
+  ProfileSettingsSection
+  _SettingsTile
+features\profile\presentation\widgets\profile_stats_row.dart:
+  ProfileStatsRow
+  _StatCard
+features\profile\presentation\widgets\profile_stats_shimmer.dart:
+  ProfileStatsShimmer
+  _ProfileStatsShimmerState
+  _ShimmerCard
+features\profile\presentation\widgets\recent_trips_section.dart:
+  RecentTripsSection
+  _SectionHeader
+  _TripsCarousel
+  _EmptyTripsState
+  _TripsShimmer
+  _TripsError
+features\profile\presentation\widgets\trip_mini_card.dart:
+  TripMiniCard
+features\recommendation\data\repositories\user_event_repository.dart:
+  UserEventRepository
+features\recommendation\data\repositories\user_profile_repository.dart:
+  UserProfileRepository
+features\recommendation\domain\entities\recommendation_item.dart:
+  RecommendationItem
+features\recommendation\domain\entities\user_interaction_event.dart:
+  InteractionType
+  UserInteractionEvent
+features\recommendation\domain\entities\user_profile.dart:
+  TravelPace
+  BudgetLevel
+  GroupType
+  UserProfile
+features\recommendation\domain\services\recommendation_service.dart:
+  RecommendationService
+  _ScoredLocation
+features\recommendation\presentation\screens\preference_survey_screen.dart:
+  PreferenceSurveyScreen
+  _PreferenceSurveyScreenState
+features\recommendation\presentation\widgets\recommended_section.dart:
+  RecommendedSection
+  _RecommendedSectionContent
+  _RecommendedCard
+features\review\data\repositories\review_like_repository.dart:
+  ReviewLikeRepository
+features\review\data\repositories\review_repository.dart:
+  ReviewRepository
+features\review\domain\entities\review.dart:
+  Review
+features\review\domain\entities\review_like.dart:
+  ReviewLike
+features\review\presentation\providers\review_like_provider.dart:
+  for
+  ReviewLikeState
+  ReviewLikeParams
+  ReviewLikeNotifier
+features\review\presentation\screens\review_detail_screen.dart:
+  ReviewDetailScreen
+  _ReviewDetailContentFromPreview
+  _ReviewDetailContent
+  _GlassBackButton
+  _GlassActionButton
+  _BottomPillButton
+  _RelatedLocationsSection
+  _RelatedLocationCard
+features\review\presentation\widgets\animated_heart_button.dart:
+  AnimatedHeartButton
+  _AnimatedHeartButtonState
+features\trip\data\mappers\trip_mapper.dart:
+  TripMapper
+features\trip\data\repositories\trip_repository.dart:
+  TripRepository
+  FirestoreTripRepository
+features\trip\domain\entities\activity.dart:
+  Activity
+features\trip\domain\entities\day_picker_selection.dart:
+  DayPickerSelection
+features\trip\domain\entities\destination_distance.dart:
+  DestinationDistance
+features\trip\domain\entities\pending_activity.dart:
+  PendingActivity
+features\trip\domain\entities\schedule_optimization_result.dart:
+  OptimizationChange
+  ScheduleOptimizationResult
+features\trip\domain\entities\schedule_validation_result.dart:
+  ScheduleValidationResult
+  ScheduleWarningType
+features\trip\domain\entities\time_slot.dart:
+  TimeSlot
+features\trip\domain\entities\trip.dart:
+  Trip
+features\trip\domain\entities\trip_day.dart:
+  TripDay
+features\trip\domain\services\schedule_optimization_service.dart:
+  _ActivityMeta
+  ScheduleOptimizationService
+features\trip\domain\services\trip_creation_service.dart:
+  TripCreationService
+features\trip\domain\services\trip_migration_service.dart:
+  TripMigrationService
+features\trip\domain\services\trip_save_service.dart:
+  TripSaveResult
+  PendingTripNotifier
+  TripSaveService
+features\trip\domain\services\trip_schedule_validation_service.dart:
+  TripScheduleValidationService
+features\trip\presentation\helpers\trip_feedback_helper.dart:
+  TripFeedbackHelper
+features\trip\presentation\helpers\visual_planner_snackbars.dart:
+  VisualPlannerSnackBars
+features\trip\presentation\providers\active_trip_provider.dart:
+  ActiveTripNotifier
+features\trip\presentation\providers\pending_trip_provider.dart:
+  PendingTripState
+  PendingTripNotifier
+features\trip\presentation\providers\schedule_optimization_provider.dart:
+  ScheduleOptimizationState
+  ScheduleOptimizationNotifier
+features\trip\presentation\providers\trip_creation_provider.dart:
+  TripCreationState
+  TripCreationNotifier
+features\trip\presentation\providers\trip_save_provider.dart:
+  TripSaveState
+  TripSaveInitial
+  TripSaveLoading
+  TripSaveSuccess
+  TripSaveError
+  TripSaveDuplicate
+  TripSaveNeedsSignIn
+  TripSaveNotifier
+features\trip\presentation\providers\visual_planner_provider.dart:
+  SaveTripResult
+  VisualPlannerState
+  VisualPlannerNotifier
+features\trip\presentation\screens\create_trip_screen.dart:
+  CreateTripScreen
+  _CreateTripScreenState
+  _SectionTitle
+features\trip\presentation\screens\trips_screen.dart:
+  TripsScreen
+features\trip\presentation\screens\visual_planner_screen.dart:
+  VisualPlannerScreen
+  _VisualPlannerScreenState
+features\trip\presentation\widgets\activity_card.dart:
+  ActivityCard
+  _TimeSlotChip
+  _DurationRow
+  _DestinationTag
+features\trip\presentation\widgets\activity_timeline.dart:
+  ActivityTimeline
+  _TimelineItem
+features\trip\presentation\widgets\add_to_trip_gesture_wrapper.dart:
+  TripItemData
+  AddToTripGestureWrapper
+  _AddToTripGestureWrapperState
+features\trip\presentation\widgets\conflict_indicators.dart:
+  MultiDestinationBadge
+  TravelTimeWarning
+  OptimizationSuggestionBanner
+  _OptimizationSuggestionBannerState
+features\trip\presentation\widgets\day_count_selector.dart:
+  DayCountSelector
+  _DateRangeDisplay
+  _QuickChip
+features\trip\presentation\widgets\day_picker_action_buttons.dart:
+  DayPickerActionButtons
+  _ActionButton
+features\trip\presentation\widgets\day_picker_bottom_sheet.dart:
+  DayPickerBottomSheet
+  _DayPickerBottomSheetState
+features\trip\presentation\widgets\day_picker_item_preview.dart:
+  DayPickerItemPreview
+features\trip\presentation\widgets\day_pills_list.dart:
+  DayPillsList
+  DayPillsListState
+  _DayPill
+  _AddNewDayButton
+features\trip\presentation\widgets\day_pills_selector.dart:
+  DayPillsSelector
+  _DayPillsSelectorState
+  _DayPill
+features\trip\presentation\widgets\destination_selection_grid.dart:
+  DestinationSelectionGrid
+  _DestinationSelectionGridState
+  _DestinationPill
+features\trip\presentation\widgets\empty_trips_state.dart:
+  EmptyTripsState
+features\trip\presentation\widgets\optimization_result_dialog.dart:
+  OptimizationResultDialog
+features\trip\presentation\widgets\schedule_warning_banner.dart:
+  ScheduleWarningBanner
+features\trip\presentation\widgets\timeline_connector.dart:
+  TimelineConnector
+  _DottedLine
+  _DottedLinePainter
+features\trip\presentation\widgets\time_slot_selector.dart:
+  TimeSlotSelector
+  _TimeSlotChip
+features\trip\presentation\widgets\trip_card.dart:
+  TripCard
+features\trip\presentation\widgets\trip_card_shimmer.dart:
+  TripCardShimmer
+  TripCardsShimmerList
+features\trip\presentation\widgets\trip_context_banner.dart:
+  TripContextBanner
+features\trip\presentation\widgets\trip_selector_bottom_sheet.dart:
+  TripSelectorBottomSheet
+features\trip\presentation\widgets\trip_selector_item.dart:
+  TripSelectorItem

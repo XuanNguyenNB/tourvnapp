@@ -22,8 +22,9 @@ class AdminLayoutScreen extends StatelessWidget {
     if (currentPath.startsWith('/admin/destinations')) return 2;
     if (currentPath.startsWith('/admin/locations')) return 3;
     if (currentPath.startsWith('/admin/reviews')) return 4;
-    if (currentPath.startsWith('/admin/import')) return 5;
-    if (currentPath.startsWith('/admin/ai-content')) return 6;
+    if (currentPath.startsWith('/admin/comments')) return 5;
+    if (currentPath.startsWith('/admin/import')) return 6;
+    if (currentPath.startsWith('/admin/ai-content')) return 7;
     return 0; // /admin (overview)
   }
 
@@ -34,6 +35,7 @@ class AdminLayoutScreen extends StatelessWidget {
     '/admin/destinations',
     '/admin/locations',
     '/admin/reviews',
+    '/admin/comments',
     '/admin/import',
     '/admin/ai-content',
   ];
@@ -77,6 +79,11 @@ class AdminLayoutScreen extends StatelessWidget {
                 icon: Icons.article_outlined,
                 selectedIcon: Icons.article,
                 label: 'Bài viết',
+              ),
+              AdminSidebarItem(
+                icon: Icons.comment_outlined,
+                selectedIcon: Icons.comment,
+                label: 'Bình luận',
               ),
               AdminSidebarItem(
                 icon: Icons.upload_file_outlined,

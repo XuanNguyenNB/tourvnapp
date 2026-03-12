@@ -3,14 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/services/map_launcher_service.dart';
 import '../../../auth/presentation/helpers/sign_in_prompt_helper.dart';
 import '../../domain/entities/activity.dart';
 import '../../domain/entities/pending_activity.dart';
+import '../../domain/services/trip_share_service.dart';
 import '../helpers/visual_planner_snackbars.dart';
 import '../providers/pending_trip_provider.dart';
 import '../providers/active_trip_provider.dart';
@@ -100,6 +103,25 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
         style: AppTypography.headingMD.copyWith(color: AppColors.textPrimary),
       ),
       centerTitle: true,
+      actions: [
+        // View route on Google Maps
+        if (trip != null)
+          IconButton(
+            icon: const Icon(Icons.map_outlined, color: AppColors.textPrimary),
+            tooltip: 'Xem lộ trình',
+            onPressed: () => _openRouteInMaps(state),
+          ),
+        // Share trip
+        if (trip != null)
+          IconButton(
+            icon: const Icon(
+              Icons.share_outlined,
+              color: AppColors.textPrimary,
+            ),
+            tooltip: 'Chia sẻ',
+            onPressed: () => _shareTrip(state),
+          ),
+      ],
     );
   }
 
@@ -359,6 +381,57 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
     ref.read(visualPlannerProvider.notifier).refresh();
     HapticFeedback.lightImpact();
     _deletedActivity = null;
+  }
+
+  /// Open current day's activities as a multi-stop route in Google Maps.
+  void _openRouteInMaps(VisualPlannerState state) {
+    final activities = state.activitiesForCurrentDay;
+    if (activities.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có hoạt động nào để xem lộ trình'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // We need to get coordinates — use the provider to fetch locations
+    final trip = state.currentTrip;
+    if (trip == null) return;
+
+    // Build waypoints from activities
+    // Note: Activities don't store coordinates directly,
+    // so we open Google Maps with location names as search queries
+    final locationNames = activities.map((a) => a.locationName).toList();
+    final destination = trip.destinationName;
+
+    // Build Google Maps directions URL with place names
+    final origin = Uri.encodeComponent('${locationNames.first}, $destination');
+    final dest = Uri.encodeComponent('${locationNames.last}, $destination');
+    final middleWaypoints = locationNames.length > 2
+        ? locationNames
+            .sublist(1, locationNames.length - 1)
+            .map((n) => Uri.encodeComponent('$n, $destination'))
+            .join('|')
+        : '';
+
+    final url = 'https://www.google.com/maps/dir/?api=1'
+        '&origin=$origin'
+        '&destination=$dest'
+        '${middleWaypoints.isNotEmpty ? '&waypoints=$middleWaypoints' : ''}'
+        '&travelmode=driving';
+
+    HapticFeedback.lightImpact();
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  /// Share the current trip itinerary.
+  void _shareTrip(VisualPlannerState state) {
+    final trip = state.currentTrip;
+    if (trip == null) return;
+    HapticFeedback.lightImpact();
+    const TripShareService().shareTrip(trip);
   }
 
   /// Build error state UI.

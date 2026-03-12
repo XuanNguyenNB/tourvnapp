@@ -70,24 +70,6 @@ class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'PRO',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -182,7 +164,7 @@ class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
                       ),
                     ),
                     Text(
-                      'admin@tourvn.app',
+                      'taxuannguyen1@gmail.com',
                       style: TextStyle(color: Colors.grey[500], fontSize: 12),
                     ),
                   ],
