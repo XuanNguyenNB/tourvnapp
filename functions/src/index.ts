@@ -12,8 +12,17 @@
  * - locationCount: number of locations for a destination
  */
 
-import * as functions from "firebase-functions";
+import * as functionsV1 from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+
+export {
+    enrichAutoPlan,
+    generateDestinationDraft,
+    generateLocationDrafts,
+    generateReviewDraft,
+    generateReviewDrafts,
+    generateStopTip,
+} from "./ai";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -24,7 +33,7 @@ const db = admin.firestore();
  * When a review is created, increment postCount and add engagement stats
  * on the parent destination document.
  */
-export const onReviewCreated = functions.firestore
+export const onReviewCreated = functionsV1.firestore
     .document("reviews/{reviewId}")
     .onCreate(async (snap) => {
         const review = snap.data();
@@ -60,7 +69,7 @@ export const onReviewCreated = functions.firestore
  * When a review is deleted, decrement postCount and subtract engagement stats
  * from the parent destination document.
  */
-export const onReviewDeleted = functions.firestore
+export const onReviewDeleted = functionsV1.firestore
     .document("reviews/{reviewId}")
     .onDelete(async (snap) => {
         const review = snap.data();
@@ -98,7 +107,7 @@ export const onReviewDeleted = functions.firestore
  * When a location is created, increment locationCount
  * on the parent destination document.
  */
-export const onLocationCreated = functions.firestore
+export const onLocationCreated = functionsV1.firestore
     .document("locations/{locationId}")
     .onCreate(async (snap) => {
         const location = snap.data();
@@ -126,7 +135,7 @@ export const onLocationCreated = functions.firestore
  * When a location is deleted, decrement locationCount
  * on the parent destination document.
  */
-export const onLocationDeleted = functions.firestore
+export const onLocationDeleted = functionsV1.firestore
     .document("locations/{locationId}")
     .onDelete(async (snap) => {
         const location = snap.data();

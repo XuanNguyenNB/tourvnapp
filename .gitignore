@@ -86,6 +86,7 @@ fix_tests.py
 
 # Node modules (for Firebase functions)
 functions/node_modules/
+functions/lib/
 
 # Migration scripts (contain sensitive config)
 scripts/

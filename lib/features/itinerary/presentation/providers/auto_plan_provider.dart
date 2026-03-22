@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/config/app_config.dart';
+import '../../../../core/services/ai_backend_service.dart';
 import '../../domain/models/auto_plan_request.dart';
 import '../../domain/services/auto_plan_service.dart';
 import '../../domain/services/llm_enrichment_service.dart';
@@ -19,7 +19,9 @@ final autoPlanServiceProvider = Provider<AutoPlanService>((ref) {
 
 /// Provider for LlmEnrichmentService
 final llmEnrichmentServiceProvider = Provider<LlmEnrichmentService>((ref) {
-  return const LlmEnrichmentService(apiKey: AppConfig.geminiApiKey);
+  return LlmEnrichmentService(
+    backendService: ref.watch(aiBackendServiceProvider),
+  );
 });
 
 // ──── State ────

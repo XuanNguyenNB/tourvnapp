@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/config/app_config.dart';
+import '../../../../core/services/ai_backend_service.dart';
 import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';
@@ -11,7 +11,7 @@ import '../../domain/services/ai_content_service.dart';
 
 /// Provider for the AI Content Service.
 final aiContentServiceProvider = Provider<AiContentService>((ref) {
-  return AiContentService(apiKey: AppConfig.geminiApiKey);
+  return AiContentService(backendService: ref.watch(aiBackendServiceProvider));
 });
 
 // ── Pending Content Providers ────────────────────────────
@@ -156,14 +156,16 @@ class AiContentNotifier extends Notifier<AiContentState> {
         allLocs = await destRepo.getLocationsByDestination(destinationId);
         locationContext = allLocs
             .where((l) => l.status == 'published')
-            .map((l) => {
-                  'id': l.id,
-                  'name': l.name,
-                  'category': l.category,
-                  'tags': l.tags,
-                  'rating': l.rating,
-                  'address': l.address,
-                })
+            .map(
+              (l) => {
+                'id': l.id,
+                'name': l.name,
+                'category': l.category,
+                'tags': l.tags,
+                'rating': l.rating,
+                'address': l.address,
+              },
+            )
             .toList();
       }
 
@@ -182,9 +184,9 @@ class AiContentNotifier extends Notifier<AiContentState> {
           review.relatedLocationIds.isNotEmpty &&
           allLocs != null) {
         final firstLoc = allLocs.cast<Location?>().firstWhere(
-              (l) => l!.id == review.relatedLocationIds.first,
-              orElse: () => null,
-            );
+          (l) => l!.id == review.relatedLocationIds.first,
+          orElse: () => null,
+        );
         if (firstLoc != null && firstLoc.image.isNotEmpty) {
           review = review.copyWith(heroImage: firstLoc.image);
         }
@@ -219,18 +221,19 @@ class AiContentNotifier extends Notifier<AiContentState> {
       final destRepo = ref.read(destinationRepositoryProvider);
 
       // Load existing locations
-      final allLocs =
-          await destRepo.getLocationsByDestination(destinationId);
+      final allLocs = await destRepo.getLocationsByDestination(destinationId);
       final locationContext = allLocs
           .where((l) => l.status == 'published')
-          .map((l) => {
-                'id': l.id,
-                'name': l.name,
-                'category': l.category,
-                'tags': l.tags,
-                'rating': l.rating,
-                'address': l.address,
-              })
+          .map(
+            (l) => {
+              'id': l.id,
+              'name': l.name,
+              'category': l.category,
+              'tags': l.tags,
+              'rating': l.rating,
+              'address': l.address,
+            },
+          )
           .toList();
 
       final jsonList = await service.generateMultipleReviews(
@@ -245,12 +248,11 @@ class AiContentNotifier extends Notifier<AiContentState> {
         var review = Review.fromJson(json);
 
         // Auto-fill heroImage
-        if (review.heroImage.isEmpty &&
-            review.relatedLocationIds.isNotEmpty) {
+        if (review.heroImage.isEmpty && review.relatedLocationIds.isNotEmpty) {
           final firstLoc = allLocs.cast<Location?>().firstWhere(
-                (l) => l!.id == review.relatedLocationIds.first,
-                orElse: () => null,
-              );
+            (l) => l!.id == review.relatedLocationIds.first,
+            orElse: () => null,
+          );
           if (firstLoc != null && firstLoc.image.isNotEmpty) {
             review = review.copyWith(heroImage: firstLoc.image);
           }

@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/ai_backend_service.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -11,8 +11,6 @@ import '../../../recommendation/domain/entities/user_profile.dart';
 import '../../../trip/presentation/providers/pending_trip_provider.dart';
 import '../../domain/models/auto_plan_request.dart';
 import '../../domain/services/auto_plan_service.dart';
-import '../../../../core/config/app_config.dart';
-import 'package:http/http.dart' as http;
 import '../providers/auto_plan_provider.dart';
 
 /// Tags available for filtering (reuses the same list as PreferenceSurveyScreen).
@@ -244,7 +242,9 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                 height: 3,
                 decoration: BoxDecoration(
                   gradient: isDone
-                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+                        )
                       : null,
                   color: isDone ? null : const Color(0xFFE2E8F0),
                   borderRadius: BorderRadius.circular(2),
@@ -264,16 +264,26 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: (isActive || isDone)
-                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                        )
                       : null,
                   color: (isActive || isDone) ? null : const Color(0xFFF1F5F9),
-                  boxShadow: isActive ? [
-                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 10, spreadRadius: 1),
-                  ] : null,
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Icon(
                   isDone ? Icons.check_rounded : icons[stepIdx],
-                  color: (isActive || isDone) ? Colors.white : const Color(0xFF94A3B8),
+                  color: (isActive || isDone)
+                      ? Colors.white
+                      : const Color(0xFF94A3B8),
                   size: isActive ? 20 : 16,
                 ),
               ),
@@ -312,29 +322,50 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
               onTap: () => setState(() => _days = d),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 48, height: 48,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: selected
-                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                        )
                       : null,
                   color: selected ? null : Colors.white,
-                  border: selected ? null : Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: selected ? [
-                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 10, spreadRadius: 1),
-                  ] : null,
+                  border: selected
+                      ? null
+                      : Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('$d', style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : AppColors.textPrimary,
-                    )),
-                    Text('ngày', style: TextStyle(
-                      fontSize: 9, fontWeight: FontWeight.w500,
-                      color: selected ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF94A3B8),
-                    )),
+                    Text(
+                      '$d',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: selected ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'ngày',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        color: selected
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : const Color(0xFF94A3B8),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -353,15 +384,22 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.06)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: selected ? AppColors.primary : const Color(0xFFE2E8F0),
                   width: selected ? 2 : 1,
                 ),
-                boxShadow: selected ? [
-                  BoxShadow(color: AppColors.primary.withValues(alpha: 0.1), blurRadius: 8),
-                ] : null,
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
               ),
               child: Row(
                 children: [
@@ -371,19 +409,32 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(p.label, style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700,
-                          color: selected ? AppColors.primary : AppColors.textPrimary,
-                        )),
+                        Text(
+                          p.label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
                         Text(
                           '~${p.locationsPerDay} điểm/ngày',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF94A3B8),
+                          ),
                         ),
                       ],
                     ),
                   ),
                   if (selected)
-                    const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+                    const Icon(
+                      Icons.check_circle,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
                 ],
               ),
             ),
@@ -736,7 +787,11 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
             ),
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
-              BoxShadow(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3), blurRadius: 14, offset: const Offset(0, 5)),
+              BoxShadow(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
             ],
           ),
           child: Column(
@@ -745,13 +800,22 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
               if (result.tripTitle != null)
                 Text(
                   result.tripTitle!,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white, height: 1.3),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.3,
+                  ),
                 ),
               if (result.tripDescription != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   result.tripDescription!,
-                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85), height: 1.4),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    height: 1.4,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -759,11 +823,17 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  _heroBadge(Icons.calendar_today_rounded, '${result.request.numberOfDays} ngày'),
+                  _heroBadge(
+                    Icons.calendar_today_rounded,
+                    '${result.request.numberOfDays} ngày',
+                  ),
                   const SizedBox(width: 10),
                   _heroBadge(Icons.place_rounded, '${result.totalStops} điểm'),
                   const SizedBox(width: 10),
-                  _heroBadge(Icons.directions_car_rounded, '~${result.totalTravelTimeMin}p'),
+                  _heroBadge(
+                    Icons.directions_car_rounded,
+                    '~${result.totalTravelTimeMin}p',
+                  ),
                 ],
               ),
             ],
@@ -794,7 +864,14 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
         children: [
           Icon(icon, size: 12, color: Colors.white),
           const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
         ],
       ),
     );
@@ -827,27 +904,44 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)]),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+                  ),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   'Ngày ${day.dayIndex + 1}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 '${day.stops.length} điểm',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
               ),
               if (day.dayTheme != null) ...[
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     day.dayTheme!,
-                    style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: Color(0xFF94A3B8),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -870,18 +964,25 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                 child: Row(
                   children: [
                     Container(
-                      width: 2, height: 14,
+                      width: 2,
+                      height: 14,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [AppColors.primary.withValues(alpha: 0.3), AppColors.primary.withValues(alpha: 0.08)],
+                          colors: [
+                            AppColors.primary.withValues(alpha: 0.3),
+                            AppColors.primary.withValues(alpha: 0.08),
+                          ],
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(8),
@@ -889,11 +990,18 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.directions_car, size: 10, color: Color(0xFF94A3B8)),
+                          const Icon(
+                            Icons.directions_car,
+                            size: 10,
+                            color: Color(0xFF94A3B8),
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             '${stop.travelFromPrevious!.formattedTravelTime} • ${stop.travelFromPrevious!.formattedDistance}',
-                            style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8)),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Color(0xFF94A3B8),
+                            ),
                           ),
                         ],
                       ),
@@ -915,7 +1023,9 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                     _expandedStops.remove(stopKey);
                   } else {
                     _expandedStops.add(stopKey);
-                    if (stop.aiDescription == null && !_lazyTips.containsKey(stopKey) && !_loadingTips.contains(stopKey)) {
+                    if (stop.aiDescription == null &&
+                        !_lazyTips.containsKey(stopKey) &&
+                        !_loadingTips.contains(stopKey)) {
                       _generateLazyTip(stopKey, stop);
                     }
                   }
@@ -930,13 +1040,15 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                   color: isExpanded ? const Color(0xFFFAF5FF) : Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isExpanded ? AppColors.primary.withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
+                    color: isExpanded
+                        ? AppColors.primary.withValues(alpha: 0.3)
+                        : const Color(0xFFF1F5F9),
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: isExpanded
-                        ? AppColors.primary.withValues(alpha: 0.08)
-                        : Colors.black.withValues(alpha: 0.03),
+                          ? AppColors.primary.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.03),
                       blurRadius: isExpanded ? 14 : 8,
                       offset: const Offset(0, 2),
                     ),
@@ -948,13 +1060,17 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                     Row(
                       children: [
                         Container(
-                          width: 44, height: 44,
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
                             color: _slotColorBg(stop.timeSlotName),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Center(
-                            child: Text(stop.location.categoryEmoji, style: const TextStyle(fontSize: 18)),
+                            child: Text(
+                              stop.location.categoryEmoji,
+                              style: const TextStyle(fontSize: 18),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -964,15 +1080,26 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                             children: [
                               Text(
                                 stop.location.name,
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 3),
                               Row(
                                 children: [
                                   _timeChip(stop.startTimeLabel),
                                   const SizedBox(width: 5),
-                                  Text('${stop.durationMin} phút', style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+                                  Text(
+                                    '${stop.durationMin} phút',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -984,7 +1111,9 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                           child: Icon(
                             Icons.keyboard_arrow_down_rounded,
                             size: 20,
-                            color: isExpanded ? AppColors.primary : const Color(0xFFCBD5E1),
+                            color: isExpanded
+                                ? AppColors.primary
+                                : const Color(0xFFCBD5E1),
                           ),
                         ),
                       ],
@@ -996,45 +1125,118 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [AppColors.primary.withValues(alpha: 0.06), AppColors.primary.withValues(alpha: 0.02)],
+                            colors: [
+                              AppColors.primary.withValues(alpha: 0.06),
+                              AppColors.primary.withValues(alpha: 0.02),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.auto_awesome, size: 12, color: AppColors.primary),
+                                Icon(
+                                  Icons.auto_awesome,
+                                  size: 12,
+                                  color: AppColors.primary,
+                                ),
                                 const SizedBox(width: 5),
-                                Text('Lời khuyên AI', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                                Text(
+                                  'Lời khuyên AI',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
                             if (stop.aiDescription != null)
-                              Text(stop.aiDescription!, style: const TextStyle(fontSize: 12, color: Color(0xFF334155), height: 1.5))
+                              Text(
+                                stop.aiDescription!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF334155),
+                                  height: 1.5,
+                                ),
+                              )
                             else if (_lazyTips.containsKey(stopKey))
-                              Text(_lazyTips[stopKey]!, style: const TextStyle(fontSize: 12, color: Color(0xFF334155), height: 1.5))
+                              Text(
+                                _lazyTips[stopKey]!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF334155),
+                                  height: 1.5,
+                                ),
+                              )
                             else if (_loadingTips.contains(stopKey))
                               Row(
                                 children: [
-                                  SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary))),
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
-                                  Text('AI đang tạo lời khuyên...', style: TextStyle(fontSize: 11, color: AppColors.primary, fontStyle: FontStyle.italic)),
+                                  Text(
+                                    'AI đang tạo lời khuyên...',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.primary,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
                                 ],
                               )
                             else
-                              const Text('Chạm để nhận lời khuyên từ AI', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic)),
+                              const Text(
+                                'Chạm để nhận lời khuyên từ AI',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF94A3B8),
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
                             if (stop.reasons.isNotEmpty) ...[
                               const SizedBox(height: 8),
                               Wrap(
-                                spacing: 4, runSpacing: 3,
-                                children: stop.reasons.map((r) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(6)),
-                                  child: Text(r, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500, color: Color(0xFF16A34A))),
-                                )).toList(),
+                                spacing: 4,
+                                runSpacing: 3,
+                                children: stop.reasons
+                                    .map(
+                                      (r) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF0FDF4),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          r,
+                                          style: const TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF16A34A),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                               ),
                             ],
                           ],
@@ -1057,49 +1259,30 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
   Future<void> _generateLazyTip(String stopKey, AutoPlanStop stop) async {
     setState(() => _loadingTips.add(stopKey));
     try {
-      final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${AppConfig.geminiApiKey}',
-      );
-      final prompt = 'Bạn là hướng dẫn viên du lịch Việt Nam chuyên nghiệp. '
-          'Địa điểm: ${stop.location.name} (loại: ${stop.location.category}). '
-          'Thời gian ghé: ${stop.startTimeLabel} - ${stop.endTimeLabel} (${stop.durationMin} phút). '
-          'Viết 2-3 câu lời khuyên gọn bằng tiếng Việt cho du khách khi đến đây: '
-          'nên làm gì, mẹo hữu ích, lưu ý. Chỉ trả lời thuần text ngắn gọn.';
+      final text = await ref
+          .read(aiBackendServiceProvider)
+          .generateStopTip(
+            locationName: stop.location.name,
+            category: stop.location.category,
+            startTimeLabel: stop.startTimeLabel,
+            endTimeLabel: stop.endTimeLabel,
+            durationMin: stop.durationMin,
+          );
 
-      final payload = jsonEncode({
-        'contents': [
-          {
-            'parts': [
-              {'text': prompt},
-            ],
-          },
-        ],
-        'generationConfig': {'maxOutputTokens': 150},
-      });
-
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: payload,
-      );
-
-      if (response.statusCode == 200 && mounted) {
-        final data = jsonDecode(response.body);
-        final text = data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+      if (mounted) {
         setState(() {
-          _lazyTips[stopKey] = text ?? 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}.';
-          _loadingTips.remove(stopKey);
-        });
-      } else if (mounted) {
-        setState(() {
-          _lazyTips[stopKey] = 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}. Đây là điểm ${stop.location.category} được đánh giá cao.';
+          _lazyTips[stopKey] = text.isNotEmpty
+              ? text
+              : 'Hay danh ${stop.durationMin} phut kham pha ${stop.location.name}.';
           _loadingTips.remove(stopKey);
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _lazyTips[stopKey] = 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}. Đây là điểm ${stop.location.category} được đánh giá cao trong khu vực.';
+          _lazyTips[stopKey] =
+              'Hay danh ${stop.durationMin} phut kham pha ${stop.location.name}. '
+              'Day la diem ${stop.location.category} duoc danh gia cao trong khu vuc.';
           _loadingTips.remove(stopKey);
         });
       }
@@ -1111,27 +1294,38 @@ class _AutoPlanSheetState extends ConsumerState<AutoPlanSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary.withValues(alpha: 0.1), AppColors.primary.withValues(alpha: 0.05)],
+          colors: [
+            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.primary.withValues(alpha: 0.05),
+          ],
         ),
         borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         time,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.primary),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
       ),
     );
   }
 
   Color _slotColorBg(String slot) {
     switch (slot) {
-      case 'morning': return const Color(0xFFFFF7ED);
-      case 'noon': return const Color(0xFFFEF9C3);
-      case 'afternoon': return const Color(0xFFEFF6FF);
-      case 'evening': return const Color(0xFFF0F0FF);
-      default: return const Color(0xFFF8FAFC);
+      case 'morning':
+        return const Color(0xFFFFF7ED);
+      case 'noon':
+        return const Color(0xFFFEF9C3);
+      case 'afternoon':
+        return const Color(0xFFEFF6FF);
+      case 'evening':
+        return const Color(0xFFF0F0FF);
+      default:
+        return const Color(0xFFF8FAFC);
     }
   }
-
 
   // ─────────────────────────────────────────────────────────────────────
   // Navigation buttons

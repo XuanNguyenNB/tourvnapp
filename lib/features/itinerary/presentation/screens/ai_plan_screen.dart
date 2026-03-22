@@ -1,10 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/ai_backend_service.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -17,7 +16,6 @@ import '../../../recommendation/domain/entities/user_profile.dart';
 import '../../../trip/presentation/providers/pending_trip_provider.dart';
 import '../../domain/models/auto_plan_request.dart';
 import '../../domain/services/auto_plan_service.dart';
-import '../../../../core/config/app_config.dart';
 import '../providers/auto_plan_provider.dart';
 
 /// Tags available for filtering.
@@ -161,14 +159,19 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               const Text(
                 '✨ AI Lập Lịch Trình',
                 style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.w800,
-                  color: Colors.white, letterSpacing: -0.5,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
                 'Chọn điểm đến và để AI tạo hành trình hoàn hảo',
-                style: TextStyle(fontSize: 15, color: Colors.white.withValues(alpha: 0.8)),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
               ),
               const SizedBox(height: 20),
               // ── Glassmorphic Search ──
@@ -176,7 +179,9 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.25),
+                  ),
                 ),
                 child: TextField(
                   controller: _searchController,
@@ -184,16 +189,31 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 15),
                   decoration: InputDecoration(
                     hintText: 'Tìm điểm đến...',
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                    prefixIcon: Icon(Icons.search_rounded, color: Colors.white.withValues(alpha: 0.7)),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                            icon: Icon(Icons.close, size: 20, color: Colors.white.withValues(alpha: 0.7)),
-                            onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); },
+                            icon: Icon(
+                              Icons.close,
+                              size: 20,
+                              color: Colors.white.withValues(alpha: 0.7),
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
                           )
                         : null,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -207,7 +227,12 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             data: (destinations) {
               final filtered = _filterDestinations(destinations);
               if (filtered.isEmpty) {
-                return const Center(child: Text('🔍 Không tìm thấy', style: TextStyle(fontSize: 16, color: Color(0xFF94A3B8))));
+                return const Center(
+                  child: Text(
+                    '🔍 Không tìm thấy',
+                    style: TextStyle(fontSize: 16, color: Color(0xFF94A3B8)),
+                  ),
+                );
               }
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
@@ -215,16 +240,24 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final d = filtered[index];
-                  return _DestinationTile(destination: d, onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _selectedDestination = d);
-                  });
+                  return _DestinationTile(
+                    destination: d,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _selectedDestination = d);
+                    },
+                  );
                 },
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Center(
-              child: Text('Không thể tải danh sách', style: AppTypography.bodyMD.copyWith(color: AppColors.textSecondary)),
+              child: Text(
+                'Không thể tải danh sách',
+                style: AppTypography.bodyMD.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
           ),
         ),
@@ -363,7 +396,9 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 height: 3,
                 decoration: BoxDecoration(
                   gradient: isDone
-                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+                        )
                       : null,
                   color: isDone ? null : const Color(0xFFE2E8F0),
                   borderRadius: BorderRadius.circular(2),
@@ -383,16 +418,26 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: (isActive || isDone)
-                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                        )
                       : null,
                   color: (isActive || isDone) ? null : const Color(0xFFF1F5F9),
-                  boxShadow: isActive ? [
-                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
-                  ] : null,
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Icon(
                   isDone ? Icons.check_rounded : icons[stepIdx],
-                  color: (isActive || isDone) ? Colors.white : const Color(0xFF94A3B8),
+                  color: (isActive || isDone)
+                      ? Colors.white
+                      : const Color(0xFF94A3B8),
                   size: isActive ? 22 : 18,
                 ),
               ),
@@ -500,23 +545,42 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             return GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
-                setState(() { _days = d; _startDate = null; _endDate = null; });
+                setState(() {
+                  _days = d;
+                  _startDate = null;
+                  _endDate = null;
+                });
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 56, height: 56,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: isSelected
-                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                        )
                       : null,
                   color: isSelected ? null : Colors.white,
-                  border: isSelected ? null : Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: isSelected ? [
-                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 12, spreadRadius: 1),
-                  ] : [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
-                  ],
+                  border: isSelected
+                      ? null
+                      : Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -524,15 +588,21 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                     Text(
                       '$d',
                       style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w700,
-                        color: isSelected ? Colors.white : AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textPrimary,
                       ),
                     ),
                     Text(
                       'ngày',
                       style: TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w500,
-                        color: isSelected ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF94A3B8),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : const Color(0xFF94A3B8),
                       ),
                     ),
                   ],
@@ -555,17 +625,28 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: selected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.06)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selected ? AppColors.primary : const Color(0xFFE2E8F0),
                   width: selected ? 2 : 1,
                 ),
-                boxShadow: selected ? [
-                  BoxShadow(color: AppColors.primary.withValues(alpha: 0.1), blurRadius: 8),
-                ] : [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
-                ],
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
               ),
               child: Row(
                 children: [
@@ -578,20 +659,30 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                         Text(
                           p.label,
                           style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700,
-                            color: selected ? AppColors.primary : AppColors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '~${p.locationsPerDay} điểm/ngày × $_days ngày = ~${p.locationsPerDay * _days} điểm',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF94A3B8),
+                          ),
                         ),
                       ],
                     ),
                   ),
                   if (selected)
-                    const Icon(Icons.check_circle, color: AppColors.primary, size: 22),
+                    const Icon(
+                      Icons.check_circle,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
                 ],
               ),
             ),
@@ -970,31 +1061,51 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
         child: Column(
           children: [
             Container(
-              width: 72, height: 72,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9), Color(0xFFA78BFA)],
+                  colors: [
+                    Color(0xFF8B5CF6),
+                    Color(0xFF6D28D9),
+                    Color(0xFFA78BFA),
+                  ],
                 ),
                 boxShadow: [
-                  BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 4),
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    spreadRadius: 4,
+                  ),
                 ],
               ),
               child: const Padding(
                 padding: EdgeInsets.all(18),
-                child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 24),
             const Text(
               'AI đang lập kế hoạch...',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
               'Đang phân tích sở thích, tối ưu tuyến đường\nvà sắp xếp lịch trình cho bạn',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8), height: 1.5),
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF94A3B8),
+                height: 1.5,
+              ),
             ),
           ],
         ),
@@ -1090,7 +1201,11 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
-              BoxShadow(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6)),
+              BoxShadow(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
             ],
           ),
           child: Column(
@@ -1099,13 +1214,22 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               if (result.tripTitle != null)
                 Text(
                   result.tripTitle!,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, height: 1.3),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.3,
+                  ),
                 ),
               if (result.tripDescription != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   result.tripDescription!,
-                  style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.85), height: 1.4),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    height: 1.4,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1114,11 +1238,17 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               // Stats row
               Row(
                 children: [
-                  _heroBadge(Icons.calendar_today_rounded, '${result.request.numberOfDays} ngày'),
+                  _heroBadge(
+                    Icons.calendar_today_rounded,
+                    '${result.request.numberOfDays} ngày',
+                  ),
                   const SizedBox(width: 12),
                   _heroBadge(Icons.place_rounded, '${result.totalStops} điểm'),
                   const SizedBox(width: 12),
-                  _heroBadge(Icons.directions_car_rounded, '~${result.totalTravelTimeMin}p'),
+                  _heroBadge(
+                    Icons.directions_car_rounded,
+                    '~${result.totalTravelTimeMin}p',
+                  ),
                 ],
               ),
             ],
@@ -1149,12 +1279,18 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
         children: [
           Icon(icon, size: 14, color: Colors.white),
           const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
         ],
       ),
     );
   }
-
 
   Widget _buildDayPreview(AutoPlanDay day) {
     if (day.stops.isEmpty) {
@@ -1183,27 +1319,44 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)]),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+                  ),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Ngày ${day.dayIndex + 1}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 '${day.stops.length} điểm',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
               ),
               if (day.dayTheme != null) ...[
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     day.dayTheme!,
-                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Color(0xFF94A3B8),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -1226,18 +1379,25 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 child: Row(
                   children: [
                     Container(
-                      width: 2, height: 16,
+                      width: 2,
+                      height: 16,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [AppColors.primary.withValues(alpha: 0.3), AppColors.primary.withValues(alpha: 0.08)],
+                          colors: [
+                            AppColors.primary.withValues(alpha: 0.3),
+                            AppColors.primary.withValues(alpha: 0.08),
+                          ],
                         ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(10),
@@ -1245,11 +1405,18 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.directions_car, size: 12, color: Color(0xFF94A3B8)),
+                          const Icon(
+                            Icons.directions_car,
+                            size: 12,
+                            color: Color(0xFF94A3B8),
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '${stop.travelFromPrevious!.formattedTravelTime} • ${stop.travelFromPrevious!.formattedDistance}',
-                            style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF94A3B8),
+                            ),
                           ),
                         ],
                       ),
@@ -1272,7 +1439,9 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                   } else {
                     _expandedStops.add(stopKey);
                     // Lazy generate tip if not available
-                    if (stop.aiDescription == null && !_lazyTips.containsKey(stopKey) && !_loadingTips.contains(stopKey)) {
+                    if (stop.aiDescription == null &&
+                        !_lazyTips.containsKey(stopKey) &&
+                        !_loadingTips.contains(stopKey)) {
                       _generateLazyTip(stopKey, stop);
                     }
                   }
@@ -1287,13 +1456,15 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                   color: isExpanded ? const Color(0xFFFAF5FF) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isExpanded ? AppColors.primary.withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
+                    color: isExpanded
+                        ? AppColors.primary.withValues(alpha: 0.3)
+                        : const Color(0xFFF1F5F9),
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: isExpanded
-                        ? AppColors.primary.withValues(alpha: 0.08)
-                        : Colors.black.withValues(alpha: 0.04),
+                          ? AppColors.primary.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.04),
                       blurRadius: isExpanded ? 16 : 10,
                       offset: const Offset(0, 2),
                     ),
@@ -1306,13 +1477,17 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                     Row(
                       children: [
                         Container(
-                          width: 52, height: 52,
+                          width: 52,
+                          height: 52,
                           decoration: BoxDecoration(
                             color: _slotColorBg(stop.timeSlotName),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Center(
-                            child: Text(stop.location.categoryEmoji, style: const TextStyle(fontSize: 22)),
+                            child: Text(
+                              stop.location.categoryEmoji,
+                              style: const TextStyle(fontSize: 22),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1322,8 +1497,13 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                             children: [
                               Text(
                                 stop.location.name,
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1E293B),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
                               Row(
@@ -1332,7 +1512,10 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                                   const SizedBox(width: 6),
                                   Text(
                                     '${stop.durationMin} phút',
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF94A3B8),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1345,7 +1528,9 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                           child: Icon(
                             Icons.keyboard_arrow_down_rounded,
                             size: 22,
-                            color: isExpanded ? AppColors.primary : const Color(0xFFCBD5E1),
+                            color: isExpanded
+                                ? AppColors.primary
+                                : const Color(0xFFCBD5E1),
                           ),
                         ),
                       ],
@@ -1358,19 +1543,35 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [AppColors.primary.withValues(alpha: 0.06), AppColors.primary.withValues(alpha: 0.02)],
+                            colors: [
+                              AppColors.primary.withValues(alpha: 0.06),
+                              AppColors.primary.withValues(alpha: 0.02),
+                            ],
                           ),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
+                                Icon(
+                                  Icons.auto_awesome,
+                                  size: 14,
+                                  color: AppColors.primary,
+                                ),
                                 const SizedBox(width: 6),
-                                Text('Lời khuyên AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                                Text(
+                                  'Lời khuyên AI',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 8),
@@ -1378,34 +1579,53 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                             if (stop.aiDescription != null)
                               Text(
                                 stop.aiDescription!,
-                                style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.5),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF334155),
+                                  height: 1.5,
+                                ),
                               )
                             else if (_lazyTips.containsKey(stopKey))
                               Text(
                                 _lazyTips[stopKey]!,
-                                style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.5),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF334155),
+                                  height: 1.5,
+                                ),
                               )
                             else if (_loadingTips.contains(stopKey))
                               Row(
                                 children: [
                                   SizedBox(
-                                    width: 14, height: 14,
+                                    width: 14,
+                                    height: 14,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        AppColors.primary,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'AI đang tạo lời khuyên...',
-                                    style: TextStyle(fontSize: 12, color: AppColors.primary, fontStyle: FontStyle.italic),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.primary,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
                                 ],
                               )
                             else
                               const Text(
                                 'Chạm để nhận lời khuyên từ AI',
-                                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF94A3B8),
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
                             // Reasons tags
                             if (stop.reasons.isNotEmpty) ...[
@@ -1413,14 +1633,30 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                               Wrap(
                                 spacing: 6,
                                 runSpacing: 4,
-                                children: stop.reasons.map((r) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(r, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF16A34A))),
-                                )).toList(),
+                                children: stop.reasons
+                                    .map(
+                                      (r) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF0FDF4),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          r,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF16A34A),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                               ),
                             ],
                           ],
@@ -1444,27 +1680,38 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary.withValues(alpha: 0.1), AppColors.primary.withValues(alpha: 0.05)],
+          colors: [
+            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.primary.withValues(alpha: 0.05),
+          ],
         ),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         time,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
       ),
     );
   }
 
   Color _slotColorBg(String slot) {
     switch (slot) {
-      case 'morning': return const Color(0xFFFFF7ED);
-      case 'noon': return const Color(0xFFFEF9C3);
-      case 'afternoon': return const Color(0xFFEFF6FF);
-      case 'evening': return const Color(0xFFF0F0FF);
-      default: return const Color(0xFFF8FAFC);
+      case 'morning':
+        return const Color(0xFFFFF7ED);
+      case 'noon':
+        return const Color(0xFFFEF9C3);
+      case 'afternoon':
+        return const Color(0xFFEFF6FF);
+      case 'evening':
+        return const Color(0xFFF0F0FF);
+      default:
+        return const Color(0xFFF8FAFC);
     }
   }
-
 
   // ─────────────────────────────────────────────────────────────────────
   // Navigation buttons
@@ -1480,9 +1727,14 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              child: const Text('Quay lại', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text(
+                'Quay lại',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         if (_step > 0) const SizedBox(width: 12),
@@ -1490,26 +1742,45 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           flex: 2,
           child: Container(
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED), Color(0xFF6D28D9)]),
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF8B5CF6),
+                  Color(0xFF7C3AED),
+                  Color(0xFF6D28D9),
+                ],
+              ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
               ],
             ),
             child: ElevatedButton(
               onPressed: () {
-                if (_step < 2) { setState(() => _step++); } else { _onGenerate(); }
+                if (_step < 2) {
+                  setState(() => _step++);
+                } else {
+                  _onGenerate();
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: Text(
                 _step < 2 ? 'Tiếp tục' : '✨ Tạo lịch trình',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -1530,9 +1801,14 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              child: const Text('Sửa cài đặt', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: const Text(
+                'Sửa cài đặt',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1540,19 +1816,33 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             flex: 2,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                ),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: ElevatedButton(
                 onPressed: _onGenerate,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-                child: const Text('🔄 Thử lại', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text(
+                  '🔄 Thử lại',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ),
@@ -1566,19 +1856,33 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           width: double.infinity,
           child: Container(
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF059669)]),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF10B981), Color(0xFF059669)],
+              ),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: AppColors.success.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.success.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: ElevatedButton(
               onPressed: planState.isEnriching ? null : _onApply,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              child: const Text('✅ Áp dụng lịch trình', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: const Text(
+                '✅ Áp dụng lịch trình',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ),
@@ -1591,7 +1895,9 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: const Text('Sửa cài đặt'),
               ),
@@ -1603,7 +1909,9 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: const Text('🔄 Tạo lại'),
               ),
@@ -1713,49 +2021,30 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
   Future<void> _generateLazyTip(String stopKey, AutoPlanStop stop) async {
     setState(() => _loadingTips.add(stopKey));
     try {
-      final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${AppConfig.geminiApiKey}',
-      );
-      final prompt = 'Bạn là hướng dẫn viên du lịch Việt Nam chuyên nghiệp. '
-          'Địa điểm: ${stop.location.name} (loại: ${stop.location.category}). '
-          'Thời gian ghé: ${stop.startTimeLabel} - ${stop.endTimeLabel} (${stop.durationMin} phút). '
-          'Viết 2-3 câu lời khuyên gọn bằng tiếng Việt cho du khách khi đến đây: '
-          'nên làm gì, mẹo hữu ích, lưu ý. Chỉ trả lời thuần text ngắn gọn.';
+      final text = await ref
+          .read(aiBackendServiceProvider)
+          .generateStopTip(
+            locationName: stop.location.name,
+            category: stop.location.category,
+            startTimeLabel: stop.startTimeLabel,
+            endTimeLabel: stop.endTimeLabel,
+            durationMin: stop.durationMin,
+          );
 
-      final payload = jsonEncode({
-        'contents': [
-          {
-            'parts': [
-              {'text': prompt},
-            ],
-          },
-        ],
-        'generationConfig': {'maxOutputTokens': 150},
-      });
-
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: payload,
-      );
-
-      if (response.statusCode == 200 && mounted) {
-        final data = jsonDecode(response.body);
-        final text = data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+      if (mounted) {
         setState(() {
-          _lazyTips[stopKey] = text ?? 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}.';
-          _loadingTips.remove(stopKey);
-        });
-      } else if (mounted) {
-        setState(() {
-          _lazyTips[stopKey] = 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}. Đây là điểm ${stop.location.category} được đánh giá cao.';
+          _lazyTips[stopKey] = text.isNotEmpty
+              ? text
+              : 'Hay danh ${stop.durationMin} phut kham pha ${stop.location.name}.';
           _loadingTips.remove(stopKey);
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _lazyTips[stopKey] = 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}. Đây là điểm ${stop.location.category} được đánh giá cao trong khu vực.';
+          _lazyTips[stopKey] =
+              'Hay danh ${stop.durationMin} phut kham pha ${stop.location.name}. '
+              'Day la diem ${stop.location.category} duoc danh gia cao trong khu vuc.';
           _loadingTips.remove(stopKey);
         });
       }
@@ -1832,7 +2121,8 @@ class _DestinationTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 56, height: 56,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -1854,14 +2144,18 @@ class _DestinationTile extends StatelessWidget {
                   Text(
                     destination.name,
                     style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF1E293B),
                     ),
                   ),
                   if (destination.description.isNotEmpty)
                     Text(
                       destination.description,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF94A3B8),
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1869,12 +2163,17 @@ class _DestinationTile extends StatelessWidget {
               ),
             ),
             Container(
-              width: 32, height: 32,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primary),
+              child: const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: AppColors.primary,
+              ),
             ),
           ],
         ),
