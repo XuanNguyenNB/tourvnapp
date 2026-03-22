@@ -36,6 +36,55 @@ service cloud.firestore {
     function hasRequiredFields(data, fields) {
       return data.keys().hasAll(fields);
     }
+
+    /// Validate comment payload contains only expected keys
+    function hasValidCommentShape(data) {
+      return hasRequiredFields(
+               data,
+               ['id', 'reviewId', 'userId', 'userName', 'text', 'createdAt', 'status']
+             )
+             && data.keys().hasOnly([
+               'id',
+               'reviewId',
+               'userId',
+               'userName',
+               'userAvatar',
+               'text',
+               'createdAt',
+               'status',
+               'flagReason',
+               'moderatedAt',
+               'moderatedBy',
+             ]);
+    }
+
+    /// Comment create must come from its owner and cannot self-moderate
+    function isValidCommentCreate(reviewId, commentId) {
+      return hasValidCommentShape(request.resource.data)
+             && request.resource.data.id == commentId
+             && request.resource.data.reviewId == reviewId
+             && request.resource.data.userId == request.auth.uid
+             && request.resource.data.status in ['approved', 'flagged']
+             && request.resource.data.moderatedAt == null
+             && request.resource.data.moderatedBy == null;
+    }
+
+    /// Owner can only edit profile text fields, never moderation fields
+    function isValidOwnerCommentUpdate() {
+      return request.resource.data.id == resource.data.id
+             && request.resource.data.reviewId == resource.data.reviewId
+             && request.resource.data.userId == resource.data.userId
+             && request.resource.data.createdAt == resource.data.createdAt
+             && request.resource.data.status == resource.data.status
+             && request.resource.data.flagReason == resource.data.flagReason
+             && request.resource.data.moderatedAt == resource.data.moderatedAt
+             && request.resource.data.moderatedBy == resource.data.moderatedBy
+             && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+               'text',
+               'userName',
+               'userAvatar',
+             ]);
+    }
     
     // ========================================
     // USER TRIPS - PRIVATE (Owner-only access)
@@ -82,16 +131,16 @@ service cloud.firestore {
     // PUBLIC CONTENT - Read-only for users
     // ========================================
     
-    // Destinations: Public read, authenticated write (for seeding)
+    // Destinations: Public read, admin write
     match /destinations/{destId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
-    // Locations: Public read, authenticated write (for seeding)
+    // Locations: Public read, admin write
     match /locations/{locId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
     // ========================================
@@ -103,10 +152,10 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
     
-    // Reviews: Public read, authenticated write (for seeding)
+    // Reviews: Public read, admin write
     match /reviews/{reviewId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
       
       // Comments subcollection: reviews/{reviewId}/comments/{commentId}
       // Moderation flow: user posts → auto-flagged if profanity → admin reviews
@@ -115,13 +164,16 @@ service cloud.firestore {
         // Note: App-level filtering ensures only 'approved' shown to users
         allow read: if true;
         
-        // Authenticated users can create comments
-        allow create: if isAuthenticated();
+        // Authenticated users can create their own comments
+        allow create: if isAuthenticated()
+                      && isValidCommentCreate(reviewId, commentId);
         
-        // Admin can update comment status (approve/reject moderation)
-        // Comment owner can update their own comments
+        // Admin can moderate any comment.
+        // Comment owner can only edit display fields, never moderation fields.
         allow update: if isAdmin() 
-                      || (isAuthenticated() && resource.data.userId == request.auth.uid);
+                      || (isAuthenticated()
+                          && resource.data.userId == request.auth.uid
+                          && isValidOwnerCommentUpdate());
         
         // Admin or comment owner can delete
         allow delete: if isAdmin()
@@ -129,10 +181,10 @@ service cloud.firestore {
       }
     }
     
-    // Categories: Public read, authenticated write
+    // Categories: Public read, admin write
     match /categories/{catId} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
     // ========================================
