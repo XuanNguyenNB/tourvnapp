@@ -51,15 +51,19 @@ class AiBackendService {
   }
 
   Future<List<Map<String, dynamic>>> generateMultipleReviews({
+    required String prompt,
     required String destinationName,
     required String destinationId,
     required List<Map<String, dynamic>> existingLocations,
+    String articleStyle = 'review',
     int count = 3,
   }) async {
     final data = await _call('generateReviewDrafts', {
+      'prompt': prompt,
       'destinationName': destinationName,
       'destinationId': destinationId,
       'existingLocations': existingLocations,
+      'articleStyle': articleStyle,
       'count': count,
     });
 

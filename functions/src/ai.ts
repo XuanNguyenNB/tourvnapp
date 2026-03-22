@@ -1,5 +1,13 @@
 import {defineSecret} from "firebase-functions/params";
 import {CallableRequest, HttpsError, onCall} from "firebase-functions/v2/https";
+import {
+  buildLocationContext,
+  type LocationContext,
+  normalizeArticleStyle,
+  normalizeReviewDraft,
+  normalizeReviewDraftArray,
+  reviewStyleInstructions,
+} from "./ai_review_utils";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 const defaultModel = "gemini-2.5-flash";
@@ -9,15 +17,6 @@ const callableOptions = {
   timeoutSeconds: 120,
   memory: "1GiB" as const,
   secrets: [geminiApiKey],
-};
-
-type LocationContext = {
-  id: string;
-  name: string;
-  category: string;
-  tags: string[];
-  rating?: number;
-  address?: string;
 };
 
 type GeminiCallOptions = {
@@ -134,6 +133,7 @@ function readLocationContextList(value: unknown): LocationContext[] {
       tags: readStringArray(entry.tags, `existingLocations[${index}].tags`),
       rating: typeof rating === "number" ? rating : undefined,
       address: readOptionalString(entry, "address"),
+      description: readOptionalString(entry, "description"),
     };
   });
 }
@@ -269,51 +269,6 @@ function parseJsonArray(raw: string): Array<Record<string, unknown>> {
     return JSON.parse(stripCodeFence(raw)) as Array<Record<string, unknown>>;
   } catch (error) {
     throw new HttpsError("internal", `Model returned invalid JSON array: ${error}`);
-  }
-}
-
-function buildLocationContext(locations: LocationContext[]): string {
-  if (locations.length === 0) {
-    return "No existing location context is available. Use general travel knowledge only.";
-  }
-
-  const lines = locations.map((location) =>
-    `- ID: "${location.id}" | ${location.name} | ${location.category} | ` +
-    `${location.tags.join(", ")} | rating=${location.rating ?? "N/A"} | ${location.address ?? ""}`,
-  );
-
-  return [
-    `The system already has ${locations.length} real locations. Use ONLY these IDs in relatedLocationIds:`,
-    ...lines,
-  ].join("\n");
-}
-
-function reviewStyleInstructions(style: string): string {
-  switch (style) {
-  case "guide":
-    return [
-      "Style: detailed guide (1000-1500 words).",
-      "Use sections for overview, transport, must-visit spots, food, and practical tips.",
-      "Include realistic timings, price hints, and itinerary ideas.",
-    ].join("\n");
-  case "top-list":
-    return [
-      "Style: top list (600-1000 words).",
-      "Use numbered sections and make each location easy to skim.",
-      "Include concise highlights and price references.",
-    ].join("\n");
-  case "tips":
-    return [
-      "Style: practical travel tips (500-800 words).",
-      "Focus on preparation, saving money, local experience, and important cautions.",
-      "Keep the writing actionable.",
-    ].join("\n");
-  default:
-    return [
-      "Style: first-hand review (800-1200 words).",
-      "Write with vivid, personal-feeling details and practical tips.",
-      "Include at least 3 Markdown headings starting with ##.",
-    ].join("\n");
   }
 }
 
@@ -454,7 +409,7 @@ export const generateReviewDraft = onCall(callableOptions, async (request) => {
   const prompt = readString(data, "prompt");
   const destinationId = readOptionalString(data, "destinationId");
   const destinationName = readOptionalString(data, "destinationName");
-  const articleStyle = readOptionalString(data, "articleStyle") ?? "review";
+  const articleStyle = normalizeArticleStyle(readOptionalString(data, "articleStyle"));
   const existingLocations = readLocationContextList(data.existingLocations);
 
   const destinationContext = destinationId
@@ -497,23 +452,33 @@ Rules:
   const text = await callGeminiText({
     prompt: `Write a ${articleStyle} travel article for: ${prompt}`,
     systemInstruction,
+    responseMimeType: "application/json",
+    maxOutputTokens: articleStyle === "guide" ? 6144 : 4096,
     useGoogleSearch: true,
   });
 
-  return parseJsonObject(text);
+  return normalizeReviewDraft(parseJsonObject(text), {
+    destinationId,
+    destinationName,
+    existingLocations,
+    articleStyle,
+  });
 });
 
 export const generateReviewDrafts = onCall(callableOptions, async (request) => {
   requireAdmin(request);
   const data = asObject(request.data);
+  const prompt = readString(data, "prompt");
   const destinationName = readString(data, "destinationName");
   const destinationId = readString(data, "destinationId");
   const count = readInteger(data, "count", 3, 1, 5);
   const existingLocations = readLocationContextList(data.existingLocations);
+  const articleStyle = normalizeArticleStyle(readOptionalString(data, "articleStyle"));
 
   const systemInstruction = `
 You are a team of Vietnamese travel bloggers. Create ${count} DISTINCT articles for "${destinationName}".
 ${buildLocationContext(existingLocations)}
+${reviewStyleInstructions(articleStyle)}
 
 Return pure JSON only as an array, no markdown fences:
 [
@@ -541,16 +506,25 @@ Rules:
 - Each article must differ in style, angle, and chosen subset of locations.
 - Write all user-facing text in Vietnamese.
 - Use only IDs from the supplied location context in relatedLocationIds.
+- Respect the admin brief and keep each article grounded in real places.
 - Do not add extra fields or explanations.
 `;
 
   const text = await callGeminiText({
-    prompt: `Create ${count} travel articles for ${destinationName}.`,
+    prompt: `Create ${count} DISTINCT ${articleStyle} travel articles for ${destinationName}. Admin brief: ${prompt}`,
     systemInstruction,
+    responseMimeType: "application/json",
+    maxOutputTokens: count >= 5 ? 12288 : 8192,
+    temperature: 0.7,
     useGoogleSearch: true,
   });
 
-  return parseJsonArray(text);
+  return normalizeReviewDraftArray(parseJsonArray(text), {
+    destinationId,
+    destinationName,
+    existingLocations,
+    articleStyle,
+  });
 });
 
 export const enrichAutoPlan = onCall(callableOptions, async (request) => {

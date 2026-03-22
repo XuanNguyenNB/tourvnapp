@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/admin_ai_content_provider.dart';
 import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/domain/entities/location.dart';
+import '../../../destination/presentation/providers/location_provider.dart';
 import '../../../review/domain/entities/review.dart';
 import '../providers/admin_destination_provider.dart';
 
@@ -27,6 +28,7 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
   // For location/review: select parent destination
   String? _selectedDestinationId;
   String? _selectedDestinationName;
+  final Set<String> _selectedReviewLocationIds = <String>{};
   int _locationCount = 5;
   String _articleStyle = 'review'; // review, guide, top-list, tips
   int _reviewCount = 1; // 1 = single, 3/5 = batch
@@ -185,6 +187,26 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
             ),
             const SizedBox(height: 8),
             _buildDestinationSelector(),
+            if (_generateType == 'review') ...[
+              const SizedBox(height: 8),
+              Text(
+                'Nên chọn điểm đến để AI bám đúng context và dùng được địa điểm thật.',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+            const SizedBox(height: 20),
+          ],
+
+          if (_generateType == 'review' && _selectedDestinationId != null) ...[
+            Text(
+              'Địa điểm cần nhấn mạnh',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildReviewLocationSelector(),
             const SizedBox(height: 20),
           ],
 
@@ -386,7 +408,12 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
       avatar: Icon(icon, size: 18),
       label: Text(label),
       selected: selected,
-      onSelected: (_) => setState(() => _generateType = value),
+      onSelected: (_) => setState(() {
+        _generateType = value;
+        if (value != 'review') {
+          _selectedReviewLocationIds.clear();
+        }
+      }),
       selectedColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
       checkmarkColor: const Color(0xFF6366F1),
       shape: RoundedRectangleBorder(
@@ -427,6 +454,9 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
     }
 
     final dests = destsAsync.items;
+    final selectableDestinations = dests
+        .where((d) => d.status == 'published' || d.status == 'draft_ai')
+        .toList();
 
     return DropdownButtonFormField<String>(
       value: _selectedDestinationId,
@@ -443,17 +473,126 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
         ),
       ),
       hint: const Text('Chọn điểm đến...'),
-      items: dests
-          .where((d) => d.status == 'published')
-          .map((d) => DropdownMenuItem(value: d.id, child: Text(d.name)))
+      items: selectableDestinations
+          .map(
+            (d) => DropdownMenuItem(
+              value: d.id,
+              child: Text(
+                d.status == 'draft_ai' ? '${d.name} (AI draft)' : d.name,
+              ),
+            ),
+          )
           .toList(),
       onChanged: (val) {
-        final dest = dests.firstWhere((d) => d.id == val);
+        if (val == null) {
+          setState(() {
+            _selectedDestinationId = null;
+            _selectedDestinationName = null;
+            _selectedReviewLocationIds.clear();
+          });
+          return;
+        }
+
+        final dest = selectableDestinations.firstWhere((d) => d.id == val);
         setState(() {
           _selectedDestinationId = val;
           _selectedDestinationName = dest.name;
+          _selectedReviewLocationIds.clear();
         });
       },
+    );
+  }
+
+  Widget _buildReviewLocationSelector() {
+    final destinationId = _selectedDestinationId;
+    if (destinationId == null) {
+      return const SizedBox.shrink();
+    }
+
+    final locationsAsync = ref.watch(
+      locationsForDestinationProvider(destinationId),
+    );
+
+    return locationsAsync.when(
+      data: (locations) {
+        final eligible =
+            locations
+                .where(
+                  (location) =>
+                      location.status == 'published' ||
+                      location.status == 'draft_ai',
+                )
+                .toList()
+              ..sort((a, b) => a.name.compareTo(b.name));
+
+        if (eligible.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Text(
+              'Điểm đến này chưa có địa điểm published hoặc AI draft. Nếu tiếp tục, bài viết sẽ thiên về review tổng quan.',
+              style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: eligible.map((location) {
+                final selected = _selectedReviewLocationIds.contains(
+                  location.id,
+                );
+                return FilterChip(
+                  label: Text(
+                    '${location.categoryEmoji} ${location.name}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  selected: selected,
+                  onSelected: (_) {
+                    setState(() {
+                      if (selected) {
+                        _selectedReviewLocationIds.remove(location.id);
+                      } else {
+                        _selectedReviewLocationIds.add(location.id);
+                      }
+                    });
+                  },
+                  selectedColor: const Color(
+                    0xFF6366F1,
+                  ).withValues(alpha: 0.12),
+                  checkmarkColor: const Color(0xFF6366F1),
+                  side: BorderSide(
+                    color: selected
+                        ? const Color(0xFF6366F1)
+                        : Colors.grey.shade300,
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _selectedReviewLocationIds.isEmpty
+                  ? 'Không chọn gì: AI sẽ tự dùng toàn bộ địa điểm hiện có của điểm đến này.'
+                  : 'Đang ưu tiên ${_selectedReviewLocationIds.length} địa điểm cho bài viết.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        );
+      },
+      loading: () => const LinearProgressIndicator(),
+      error: (error, _) => Text(
+        'Không tải được danh sách địa điểm: $error',
+        style: TextStyle(fontSize: 13, color: Colors.red[700]),
+      ),
     );
   }
 
@@ -485,7 +624,12 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
 
   void _onGenerate() {
     final prompt = _promptController.text.trim();
-    if (prompt.isEmpty) return;
+    if (prompt.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập brief cho AI')),
+      );
+      return;
+    }
 
     final notifier = ref.read(aiContentNotifierProvider.notifier);
 
@@ -512,13 +656,18 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
           // Batch generate
           if (_selectedDestinationId == null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Vui lòng chọn điểm đến để tạo nhiều bài')),
+              const SnackBar(
+                content: Text('Vui lòng chọn điểm đến để tạo nhiều bài'),
+              ),
             );
             return;
           }
           notifier.generateMultipleReviews(
+            prompt: prompt,
             destinationId: _selectedDestinationId!,
             destinationName: _selectedDestinationName!,
+            articleStyle: _articleStyle,
+            focusLocationIds: _selectedReviewLocationIds,
             count: _reviewCount,
           );
         } else {
@@ -528,6 +677,7 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
             destinationId: _selectedDestinationId,
             destinationName: _selectedDestinationName,
             articleStyle: _articleStyle,
+            focusLocationIds: _selectedReviewLocationIds,
           );
         }
         break;
@@ -602,7 +752,10 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
               children: [
                 Text(
                   '$title (${items.length})',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const Spacer(),
                 if (items.length > 1)
@@ -612,14 +765,23 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
                     label: const Text('Duyệt tất cả'),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.green[700],
-                      textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
               ],
             );
           },
-          loading: () => Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          error: (_, __) => Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          loading: () => Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          error: (_, __) => Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
         ),
         const SizedBox(height: 12),
         asyncData.when(
@@ -670,9 +832,9 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã duyệt $count mục')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Đã duyệt $count mục')));
     }
   }
 
@@ -693,7 +855,10 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -801,112 +966,112 @@ class _PendingCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image thumbnail
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholderImage(),
-                    )
-                  : _placeholderImage(),
-            ),
-            const SizedBox(width: 16),
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'AI Draft',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.orange,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Action buttons
-            Column(
-              children: [
-                IconButton(
-                  onPressed: onApprove,
-                  icon: const Icon(Icons.check_circle, color: Colors.green),
-                  tooltip: 'Duyệt',
-                  constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                ),
-                IconButton(
-                  onPressed: onReject,
-                  icon: const Icon(Icons.cancel, color: Colors.red),
-                  tooltip: 'Từ chối',
-                  constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                ),
-              ],
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-      ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image thumbnail
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _placeholderImage(),
+                      )
+                    : _placeholderImage(),
+              ),
+              const SizedBox(width: 16),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'AI Draft',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Action buttons
+              Column(
+                children: [
+                  IconButton(
+                    onPressed: onApprove,
+                    icon: const Icon(Icons.check_circle, color: Colors.green),
+                    tooltip: 'Duyệt',
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onReject,
+                    icon: const Icon(Icons.cancel, color: Colors.red),
+                    tooltip: 'Từ chối',
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

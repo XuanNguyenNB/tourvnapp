@@ -36,6 +36,89 @@ final pendingReviewsProvider = FutureProvider<List<Review>>((ref) async {
   return repo.getReviewsByStatus('draft_ai');
 });
 
+const _reviewContextStatuses = {'published', 'draft_ai'};
+
+Iterable<Location> _orderedUniqueLocations(
+  List<Location> primary,
+  List<Location> secondary,
+) sync* {
+  final seenIds = <String>{};
+  for (final location in [...primary, ...secondary]) {
+    if (seenIds.add(location.id)) {
+      yield location;
+    }
+  }
+}
+
+List<Location> _selectReviewContextLocations(
+  List<Location> locations, {
+  Set<String> focusLocationIds = const {},
+}) {
+  final eligible = locations
+      .where((location) => _reviewContextStatuses.contains(location.status))
+      .toList();
+
+  if (focusLocationIds.isEmpty) {
+    return eligible;
+  }
+
+  final focused = eligible
+      .where((location) => focusLocationIds.contains(location.id))
+      .toList();
+
+  return focused.isNotEmpty ? focused : eligible;
+}
+
+List<Map<String, dynamic>> _buildReviewLocationContext(
+  List<Location> locations,
+) {
+  return locations
+      .map(
+        (location) => {
+          'id': location.id,
+          'name': location.name,
+          'category': location.category,
+          'tags': location.tags,
+          'rating': location.rating,
+          'address': location.address,
+          'description': location.description,
+        },
+      )
+      .toList();
+}
+
+Review _applyHeroFallback(
+  Review review,
+  List<Location> prioritizedLocations,
+  List<Location> allLocations,
+) {
+  if (review.heroImage.isNotEmpty) {
+    return review;
+  }
+
+  final relatedIds = review.relatedLocationIds.toSet();
+
+  for (final location in _orderedUniqueLocations(
+    prioritizedLocations,
+    allLocations,
+  )) {
+    if (relatedIds.contains(location.id) && location.image.isNotEmpty) {
+      return review.copyWith(heroImage: location.image);
+    }
+  }
+
+  for (final location in _orderedUniqueLocations(
+    prioritizedLocations,
+    allLocations,
+  )) {
+    if (location.image.isNotEmpty) {
+      return review.copyWith(heroImage: location.image);
+    }
+  }
+
+  return review;
+}
+
 // ── AI Content Notifier ──────────────────────────────────
 
 /// State for AI generation operations.
@@ -140,6 +223,7 @@ class AiContentNotifier extends Notifier<AiContentState> {
     String? destinationId,
     String? destinationName,
     String articleStyle = 'review',
+    Set<String> focusLocationIds = const {},
   }) async {
     state = state.copyWith(isGenerating: true, error: null);
     try {
@@ -148,22 +232,15 @@ class AiContentNotifier extends Notifier<AiContentState> {
 
       // Load existing locations for context
       List<Map<String, dynamic>>? locationContext;
-      List<Location>? allLocs;
+      List<Location> allLocs = const [];
+      List<Location> contextLocations = const [];
       if (destinationId != null) {
         allLocs = await destRepo.getLocationsByDestination(destinationId);
-        locationContext = allLocs
-            .where((l) => l.status == 'published')
-            .map(
-              (l) => {
-                'id': l.id,
-                'name': l.name,
-                'category': l.category,
-                'tags': l.tags,
-                'rating': l.rating,
-                'address': l.address,
-              },
-            )
-            .toList();
+        contextLocations = _selectReviewContextLocations(
+          allLocs,
+          focusLocationIds: focusLocationIds,
+        );
+        locationContext = _buildReviewLocationContext(contextLocations);
       }
 
       final json = await service.generateReview(
@@ -176,18 +253,14 @@ class AiContentNotifier extends Notifier<AiContentState> {
 
       var review = Review.fromJson(json);
 
-      // Auto-fill heroImage from first related location
-      if (review.heroImage.isEmpty &&
-          review.relatedLocationIds.isNotEmpty &&
-          allLocs != null) {
-        final firstLoc = allLocs.cast<Location?>().firstWhere(
-          (l) => l!.id == review.relatedLocationIds.first,
-          orElse: () => null,
+      if (destinationId != null && review.destinationId == null) {
+        review = review.copyWith(
+          destinationId: destinationId,
+          destinationName: destinationName,
         );
-        if (firstLoc != null && firstLoc.image.isNotEmpty) {
-          review = review.copyWith(heroImage: firstLoc.image);
-        }
       }
+
+      review = _applyHeroFallback(review, contextLocations, allLocs);
 
       final repo = ref.read(reviewRepositoryProvider);
       await repo.createReview(review);
@@ -208,8 +281,11 @@ class AiContentNotifier extends Notifier<AiContentState> {
   ///
   /// Each article will have a different style, focus, and location set.
   Future<void> generateMultipleReviews({
+    required String prompt,
     required String destinationId,
     required String destinationName,
+    String articleStyle = 'review',
+    Set<String> focusLocationIds = const {},
     int count = 3,
   }) async {
     state = state.copyWith(isGenerating: true, error: null);
@@ -219,42 +295,31 @@ class AiContentNotifier extends Notifier<AiContentState> {
 
       // Load existing locations
       final allLocs = await destRepo.getLocationsByDestination(destinationId);
-      final locationContext = allLocs
-          .where((l) => l.status == 'published')
-          .map(
-            (l) => {
-              'id': l.id,
-              'name': l.name,
-              'category': l.category,
-              'tags': l.tags,
-              'rating': l.rating,
-              'address': l.address,
-            },
-          )
-          .toList();
+      final contextLocations = _selectReviewContextLocations(
+        allLocs,
+        focusLocationIds: focusLocationIds,
+      );
+      final locationContext = _buildReviewLocationContext(contextLocations);
 
       final jsonList = await service.generateMultipleReviews(
+        prompt: prompt,
         destinationName: destinationName,
         destinationId: destinationId,
         existingLocations: locationContext,
+        articleStyle: articleStyle,
         count: count,
       );
 
       final repo = ref.read(reviewRepositoryProvider);
       for (final json in jsonList) {
         var review = Review.fromJson(json);
-
-        // Auto-fill heroImage
-        if (review.heroImage.isEmpty && review.relatedLocationIds.isNotEmpty) {
-          final firstLoc = allLocs.cast<Location?>().firstWhere(
-            (l) => l!.id == review.relatedLocationIds.first,
-            orElse: () => null,
+        if (review.destinationId == null) {
+          review = review.copyWith(
+            destinationId: destinationId,
+            destinationName: destinationName,
           );
-          if (firstLoc != null && firstLoc.image.isNotEmpty) {
-            review = review.copyWith(heroImage: firstLoc.image);
-          }
         }
-
+        review = _applyHeroFallback(review, contextLocations, allLocs);
         await repo.createReview(review);
       }
 
