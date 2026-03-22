@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tour_vn/features/trip/domain/entities/trip.dart';
 import 'package:tour_vn/features/trip/presentation/providers/active_trip_provider.dart';
 import 'package:tour_vn/features/trip/presentation/widgets/trip_context_banner.dart';
@@ -38,11 +39,24 @@ void main() {
       final container = ProviderContainer();
       container.read(activeTripProvider.notifier).setActiveTrip(testTrip);
       addTearDown(container.dispose);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const Scaffold(body: TripContextBanner()),
+          ),
+          GoRoute(
+            path: '/trips/:id',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+        ],
+      );
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: Scaffold(body: TripContextBanner())),
+          child: MaterialApp.router(routerConfig: router),
         ),
       );
 

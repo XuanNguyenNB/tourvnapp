@@ -1,17 +1,17 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tour_vn/features/admin/presentation/providers/admin_location_provider.dart';
-import 'package:tour_vn/features/admin/presentation/providers/admin_destination_provider.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:tour_vn/features/admin/presentation/providers/admin_category_provider.dart';
 import 'package:tour_vn/features/admin/presentation/screens/manage_locations_screen.dart';
-import 'package:tour_vn/features/destination/domain/entities/location.dart';
-import 'package:tour_vn/features/destination/domain/entities/destination.dart';
 import 'package:tour_vn/features/destination/data/repositories/destination_repository.dart';
+import 'package:tour_vn/features/destination/domain/entities/category.dart';
+import 'package:tour_vn/features/destination/domain/entities/destination.dart';
+import 'package:tour_vn/features/destination/domain/entities/location.dart';
 import 'package:tour_vn/features/destination/presentation/providers/destination_provider.dart';
 
-/// Mock HTTP overrides for image loading
 class MockHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -20,16 +20,15 @@ class MockHttpOverrides extends HttpOverrides {
   }
 }
 
-/// Fake destination repository that doesn't touch Firebase
 class FakeDestinationRepository implements DestinationRepository {
-  final List<Location> _locations;
-  final List<Destination> _destinations;
-
   FakeDestinationRepository({
     List<Location>? locations,
     List<Destination>? destinations,
-  }) : _locations = locations ?? [],
-       _destinations = destinations ?? [];
+  }) : _locations = locations ?? <Location>[],
+       _destinations = destinations ?? <Destination>[];
+
+  final List<Location> _locations;
+  final List<Destination> _destinations;
 
   @override
   Future<List<Location>> getAllLocations() async => _locations;
@@ -44,18 +43,46 @@ class FakeDestinationRepository implements DestinationRepository {
 
   @override
   Future<void> updateLocation(Location location) async {
-    final index = _locations.indexWhere((l) => l.id == location.id);
-    if (index != -1) _locations[index] = location;
+    final index = _locations.indexWhere((item) => item.id == location.id);
+    if (index != -1) {
+      _locations[index] = location;
+    }
   }
 
   @override
   Future<void> deleteLocation(String id) async {
-    _locations.removeWhere((l) => l.id == id);
+    _locations.removeWhere((location) => location.id == id);
   }
 
-  // Stub all other methods from DestinationRepository
   @override
-  dynamic noSuchMethod(Invocation invocation) => null;
+  Future<({List<Destination> items, DocumentSnapshot? lastDoc})>
+  getDestinationsPaginated({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+  }) async {
+    return (items: _destinations.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
+  Future<({List<Location> items, DocumentSnapshot? lastDoc})>
+  getLocationsPaginated({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String? destinationId,
+  }) async {
+    final filtered = destinationId == null
+        ? _locations
+        : _locations
+              .where((location) => location.destinationId == destinationId)
+              .toList();
+    return (items: filtered.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
+  Future<int> fixInconsistentDestinationIds() async => 0;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -109,53 +136,57 @@ void main() {
     );
 
     return ProviderScope(
-      overrides: [destinationRepositoryProvider.overrideWithValue(fakeRepo)],
-      child: const MaterialApp(home: ManageLocationsScreen()),
+      overrides: [
+        destinationRepositoryProvider.overrideWithValue(fakeRepo),
+        activeCategoriesProvider.overrideWith(
+          (_) async => Category.defaultCategories.take(3).toList(),
+        ),
+      ],
+      child: const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(size: Size(1400, 1000)),
+          child: ManageLocationsScreen(),
+        ),
+      ),
     );
   }
 
-  testWidgets('Should display locations list', (WidgetTester tester) async {
+  testWidgets('Should display locations list', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    expect(find.text('Manage Locations'), findsOneWidget);
+    expect(find.text('Quản lý Địa điểm'), findsOneWidget);
     expect(find.text('Hồ Xuân Hương'), findsOneWidget);
     expect(find.text('Tràng An'), findsOneWidget);
   });
 
-  testWidgets('Should open add location form dialog', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Should open add location form dialog', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Tap the FAB to add
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.text('Thêm địa điểm'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Add Location'), findsAtLeast(1));
-    expect(find.text('Latitude (-90 to 90)'), findsOneWidget);
+    expect(find.text('Thêm Địa điểm'), findsOneWidget);
+    expect(find.text('Vĩ độ (-90 đến 90)'), findsOneWidget);
   });
 
-  testWidgets('Should show delete confirmation dialog', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Should show delete confirmation dialog', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Tap delete on first item
-    await tester.tap(find.byTooltip('Delete').first);
+    await tester.tap(find.byTooltip('Xóa').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Delete Location?'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
-    expect(find.text('Delete'), findsOneWidget);
+    expect(find.text('Xóa Địa điểm?'), findsOneWidget);
+    expect(find.text('Hủy'), findsOneWidget);
+    expect(find.text('Xóa'), findsWidgets);
   });
 
-  testWidgets('Should show empty state', (WidgetTester tester) async {
+  testWidgets('Should show empty state', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest(locations: []));
     await tester.pumpAndSettle();
 
-    expect(find.text('No locations found.'), findsOneWidget);
+    expect(find.text('Chưa có địa điểm nào'), findsOneWidget);
   });
 }

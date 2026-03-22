@@ -181,6 +181,7 @@ void main() {
     );
 
     const reviewPlacesDaNang = ReviewPreview(
+      title: 'Places Review',
       id: 'review-2',
       authorName: 'Test User 2',
       authorAvatar: 'https://example.com/avatar2.jpg',
@@ -193,6 +194,7 @@ void main() {
     );
 
     const reviewFoodDaLat = ReviewPreview(
+      title: 'Food Review',
       id: 'review-3',
       authorName: 'Test User 3',
       authorAvatar: 'https://example.com/avatar3.jpg',
@@ -205,6 +207,7 @@ void main() {
     );
 
     const reviewWithoutCategory = ReviewPreview(
+      title: 'Review Without Category',
       id: 'review-4',
       authorName: 'Test User 4',
       authorAvatar: 'https://example.com/avatar4.jpg',

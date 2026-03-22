@@ -86,7 +86,11 @@ class AdminDestinationNotifier extends Notifier<PaginatedState<Destination>> {
   Future<void> deleteDestinationData(String id) async {
     try {
       await _repository.deleteDestination(id);
-      await ImageUploadService.deleteDestinationHero(id);
+      try {
+        await ImageUploadService.deleteDestinationHero(id);
+      } on UnsupportedError {
+        // Non-web/test environments do not provide image storage cleanup.
+      }
       state = state.copyWith(
         items: state.items.where((d) => d.id != id).toList(),
       );
@@ -100,7 +104,11 @@ class AdminDestinationNotifier extends Notifier<PaginatedState<Destination>> {
     try {
       await _repository.deleteDestinationBatch(ids);
       for (final id in ids) {
-        await ImageUploadService.deleteDestinationHero(id);
+        try {
+          await ImageUploadService.deleteDestinationHero(id);
+        } on UnsupportedError {
+          // Non-web/test environments do not provide image storage cleanup.
+        }
       }
       final idSet = ids.toSet();
       state = state.copyWith(

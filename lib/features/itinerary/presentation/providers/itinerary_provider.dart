@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/services/itinerary_service.dart';
 import '../../domain/models/itinerary_constraints.dart';
-import '../../../destination/domain/entities/location.dart';
 import '../../../destination/presentation/providers/location_provider.dart';
 import '../../../trip/domain/entities/trip_day.dart';
 import '../../../recommendation/domain/entities/user_profile.dart';

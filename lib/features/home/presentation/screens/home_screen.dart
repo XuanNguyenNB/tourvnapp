@@ -86,8 +86,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .catchError((_) => <ContentItem>[]);
   }
 
-
-
   /// Handle chip tap: request GPS if needed, set boost category, scroll.
   void _handleChipTap(SuggestionData? suggestion) {
     setState(() {
@@ -109,8 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() => _boostCategory = newBoost);
 
     // Request GPS for location-aware chips
-    final needsGps =
-        suggestion.filterType == SuggestionFilterType.nearMe;
+    final needsGps = suggestion.filterType == SuggestionFilterType.nearMe;
 
     if (needsGps) {
       _requestLocationIfNeeded();
@@ -392,8 +389,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 case SuggestionFilterType.none:
                   // Text-based match for non-category/mood chips
                   final query = suggestion.searchQuery.toLowerCase();
-                  return (review.shortText?.toLowerCase().contains(query) ??
-                          false) ||
+                  return review.shortText.toLowerCase().contains(query) ||
                       review.title.toLowerCase().contains(query);
               }
             }).toList();

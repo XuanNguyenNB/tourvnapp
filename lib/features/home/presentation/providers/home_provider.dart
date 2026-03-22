@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../destination/data/repositories/destination_repository.dart';
 import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';

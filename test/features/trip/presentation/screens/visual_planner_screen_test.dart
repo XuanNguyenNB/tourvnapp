@@ -16,7 +16,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Screen should be rendered
       expect(find.byType(Scaffold), findsOneWidget);
     });
 
@@ -30,12 +29,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // App bar should have back button
       expect(find.byType(AppBar), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     });
 
-    testWidgets('shows FAB for pending trip', (tester) async {
+    testWidgets('shows empty-trip state when pending trip is empty', (tester) async {
       await tester.pumpWidget(
         const ProviderScope(
           child: MaterialApp(home: VisualPlannerScreen.fromPending()),
@@ -45,26 +43,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.byType(FloatingActionButton), findsOneWidget);
-    });
-
-    testWidgets('renders Auto Optimization Button when trip is present', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(home: VisualPlannerScreen.fromPending()),
-        ),
-      );
-
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      // In the pending empty state, currentTrip might be null.
-      // But let's check if the widget gets rendered appropriately when state is set.
-      // Since setting up a full trip state is complex, for Visual Planner Screen
-      // the test could be minimal.
-      expect(find.byType(VisualPlannerScreen), findsOneWidget);
+      expect(find.text('Không tìm thấy chuyến đi'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
     });
   });
 
@@ -86,7 +66,6 @@ void main() {
       await tester.tap(find.text('Trigger'));
       await tester.pump();
 
-      // SnackBar should be displayed
       expect(find.byType(SnackBar), findsOneWidget);
     });
 
@@ -110,9 +89,7 @@ void main() {
       expect(find.byType(SnackBar), findsOneWidget);
     });
 
-    testWidgets('showError with custom message displays snackbar', (
-      tester,
-    ) async {
+    testWidgets('showError with custom message displays snackbar', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

@@ -22,53 +22,59 @@ Widget createTestWidget({
   );
 }
 
+Trip createTrip() {
+  final now = DateTime(2026, 1, 1);
+  return Trip(
+    id: 'trip-1',
+    userId: 'test-uid',
+    name: 'Đà Nẵng 3 ngày',
+    destinationId: 'da-nang',
+    destinationName: 'Đà Nẵng',
+    days: const [],
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
 void main() {
   group('TripsScreen', () {
-    testWidgets('shows FAB for signed-in users', (WidgetTester tester) async {
-      const user = User(
-        uid: 'test-uid',
-        isAnonymous: false,
-        email: 'test@example.com',
-        displayName: 'Test User',
-      );
+    const signedInUser = User(
+      uid: 'test-uid',
+      isAnonymous: false,
+      email: 'test@example.com',
+      displayName: 'Test User',
+    );
 
-      await tester.pumpWidget(createTestWidget(user: user, isAnonymous: false));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(FloatingActionButton), findsOneWidget);
-      expect(find.text('Tạo mới'), findsOneWidget);
-    });
-
-    testWidgets('hides FAB for anonymous users', (WidgetTester tester) async {
-      await tester.pumpWidget(createTestWidget(isAnonymous: true));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(FloatingActionButton), findsNothing);
-    });
-
-    testWidgets('empty state for signed-in users shows context correctly', (
-      WidgetTester tester,
+    testWidgets('shows bottom create bar for signed-in users with trips', (
+      tester,
     ) async {
-      const user = User(
-        uid: 'test-uid',
-        isAnonymous: false,
-        email: 'test@example.com',
-        displayName: 'Test User',
+      await tester.pumpWidget(
+        createTestWidget(
+          user: signedInUser,
+          isAnonymous: false,
+          trips: [createTrip()],
+        ),
       );
-
-      await tester.pumpWidget(createTestWidget(user: user, isAnonymous: false));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Bắt đầu lên kế hoạch cho chuyến đi tiếp theo!'),
-        findsOneWidget,
-      );
-      expect(find.text('🎒 Tạo chuyến đi đầu tiên'), findsOneWidget);
+      expect(find.text('AI lên lịch'), findsOneWidget);
+      expect(find.text('Tự lên lịch'), findsOneWidget);
     });
 
-    testWidgets('empty state for anonymous users shows sign-in prompt', (
-      WidgetTester tester,
+    testWidgets('empty state for signed-in users shows current messaging', (
+      tester,
     ) async {
+      await tester.pumpWidget(
+        createTestWidget(user: signedInUser, isAnonymous: false),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lên kế hoạch thông minh trong vài giây!'), findsOneWidget);
+      expect(find.text('✨ Lên lịch trình với AI'), findsOneWidget);
+      expect(find.text('Tự tạo thủ công'), findsOneWidget);
+    });
+
+    testWidgets('anonymous users see sign-in prompt', (tester) async {
       await tester.pumpWidget(createTestWidget(isAnonymous: true));
       await tester.pumpAndSettle();
 

@@ -21,11 +21,11 @@ void main() {
         );
 
         // Verify all 5 day pills are rendered
-        expect(find.text('Day 1'), findsOneWidget);
-        expect(find.text('Day 2'), findsOneWidget);
-        expect(find.text('Day 3'), findsOneWidget);
-        expect(find.text('Day 4'), findsOneWidget);
-        expect(find.text('Day 5'), findsOneWidget);
+        expect(find.text('Ngày 1'), findsOneWidget);
+        expect(find.text('Ngày 2'), findsOneWidget);
+        expect(find.text('Ngày 3'), findsOneWidget);
+        expect(find.text('Ngày 4'), findsOneWidget);
+        expect(find.text('Ngày 5'), findsOneWidget);
       });
 
       testWidgets('highlights selected day pill', (tester) async {
@@ -63,8 +63,8 @@ void main() {
           ),
         );
 
-        expect(find.text('Day 1'), findsOneWidget);
-        expect(find.text('Day 2'), findsNothing);
+        expect(find.text('Ngày 1'), findsOneWidget);
+        expect(find.text('Ngày 2'), findsNothing);
       });
     });
 
@@ -85,7 +85,7 @@ void main() {
         );
 
         // Tap on Day 2
-        await tester.tap(find.text('Day 2'));
+        await tester.tap(find.text('Ngày 2'));
         await tester.pump();
 
         expect(selectedDay, 2);
@@ -106,7 +106,7 @@ void main() {
           ),
         );
 
-        await tester.tap(find.text('Day 1'));
+        await tester.tap(find.text('Ngày 1'));
         await tester.pump();
 
         expect(callCount, 1);
@@ -131,7 +131,7 @@ void main() {
         expect(find.byType(ListView), findsOneWidget);
 
         // Day 10 might not be visible initially
-        expect(find.text('Day 1'), findsOneWidget);
+        expect(find.text('Ngày 1'), findsOneWidget);
       });
 
       testWidgets('updates when selectedDay changes externally', (
@@ -154,7 +154,7 @@ void main() {
         );
 
         // Day 3 should be selected
-        expect(find.text('Day 3'), findsOneWidget);
+        expect(find.text('Ngày 3'), findsOneWidget);
       });
     });
 
@@ -223,7 +223,7 @@ void main() {
         );
 
         // Tap Day 2
-        await tester.tap(find.text('Day 2'));
+        await tester.tap(find.text('Ngày 2'));
 
         // Animation should be in progress
         await tester.pump(const Duration(milliseconds: 100));
@@ -254,10 +254,10 @@ void main() {
         );
 
         // Rapidly tap different days
-        await tester.tap(find.text('Day 2'));
-        await tester.tap(find.text('Day 3'));
-        await tester.tap(find.text('Day 4'));
-        await tester.tap(find.text('Day 5'));
+        await tester.tap(find.text('Ngày 2'));
+        await tester.tap(find.text('Ngày 3'));
+        await tester.tap(find.text('Ngày 4'));
+        await tester.tap(find.text('Ngày 5'));
         await tester.pump();
 
         // All taps should be registered
@@ -288,11 +288,11 @@ void main() {
         );
 
         // Rapid taps
-        await tester.tap(find.text('Day 2'));
+        await tester.tap(find.text('Ngày 2'));
         await tester.pump();
-        await tester.tap(find.text('Day 4'));
+        await tester.tap(find.text('Ngày 4'));
         await tester.pump();
-        await tester.tap(find.text('Day 5'));
+        await tester.tap(find.text('Ngày 5'));
         await tester.pump();
 
         // Final selection should be Day 5

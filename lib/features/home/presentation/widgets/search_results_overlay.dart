@@ -180,13 +180,15 @@ class SearchResultsOverlay extends StatelessWidget {
       children: [
         if (destinations.isNotEmpty) ...[
           _buildSectionHeader('ĐIỂM ĐẾN', colorScheme),
-          ...destinations.map((d) => _buildDestinationItem(d, colorScheme)),
+          ...destinations
+              .take(maxResults)
+              .map((d) => _buildDestinationItem(d, colorScheme)),
           if (locations.isNotEmpty || reviews.isNotEmpty)
             Divider(height: 16, color: colorScheme.outline.withOpacity(0.2)),
         ],
         if (locations.isNotEmpty) ...[
           _buildSectionHeader('ĐỊA ĐIỂM', colorScheme),
-          ...locations.map(
+          ...locations.take(maxResults).map(
             (l) => SearchResultItem(
               location: l,
               onTap: () => onLocationSelected(l),
@@ -197,7 +199,9 @@ class SearchResultsOverlay extends StatelessWidget {
         ],
         if (reviews.isNotEmpty) ...[
           _buildSectionHeader('BÀI VIẾT', colorScheme),
-          ...reviews.map((r) => _buildReviewItem(r, colorScheme)),
+          ...reviews.take(maxResults).map(
+            (r) => _buildReviewItem(r, colorScheme),
+          ),
         ],
       ],
     );

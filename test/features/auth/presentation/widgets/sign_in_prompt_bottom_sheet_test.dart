@@ -54,7 +54,6 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      // Verify drag handle exists
       expect(
         find.byWidgetPredicate(
           (widget) =>
@@ -64,27 +63,22 @@ void main() {
         ),
         findsOneWidget,
       );
-
-      // Verify icon exists
       expect(find.byIcon(Icons.bookmark_add_rounded), findsOneWidget);
-
-      // Verify title text in Vietnamese
       expect(find.text('Đăng nhập để lưu chuyến đi'), findsOneWidget);
-
-      // Verify subtitle text in Vietnamese
       expect(
         find.text('Chuyến đi sẽ được đồng bộ trên mọi thiết bị của bạn'),
         findsOneWidget,
       );
-
-      // Verify Google sign-in button
       expect(find.text('Đăng nhập với Google'), findsOneWidget);
-
-      // Verify Facebook sign-in button
-      expect(find.text('Đăng nhập với Facebook'), findsOneWidget);
-
-      // Verify dismiss button
       expect(find.text('Để sau'), findsOneWidget);
+    });
+
+    testWidgets('does not render the legacy Facebook button', (tester) async {
+      await tester.pumpWidget(createWidget());
+      await tester.tap(find.text('Show Sheet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Đăng nhập với Facebook'), findsNothing);
     });
 
     testWidgets('dismiss button calls onDismiss callback', (tester) async {
@@ -92,11 +86,9 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      // Tap dismiss button
       await tester.tap(find.text('Để sau'));
       await tester.pumpAndSettle();
 
-      // Verify onDismiss was called
       expect(onDismissCalled, isTrue);
     });
 
@@ -105,14 +97,11 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      // Verify sheet is shown
       expect(find.text('Đăng nhập để lưu chuyến đi'), findsOneWidget);
 
-      // Tap dismiss button
       await tester.tap(find.text('Để sau'));
       await tester.pumpAndSettle();
 
-      // Verify sheet is closed
       expect(find.text('Đăng nhập để lưu chuyến đi'), findsNothing);
     });
 
@@ -121,39 +110,15 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      // Verify Google button exists and is enabled
       final googleButton = find.widgetWithText(
         ElevatedButton,
         'Đăng nhập với Google',
       );
       expect(googleButton, findsOneWidget);
 
-      // Check button is not disabled
       final button = tester.widget<ElevatedButton>(
         find.ancestor(
           of: find.text('Đăng nhập với Google'),
-          matching: find.byType(ElevatedButton),
-        ),
-      );
-      expect(button.onPressed, isNotNull);
-    });
-
-    testWidgets('Facebook sign-in button is tappable', (tester) async {
-      await tester.pumpWidget(createWidget());
-      await tester.tap(find.text('Show Sheet'));
-      await tester.pumpAndSettle();
-
-      // Verify Facebook button exists and is enabled
-      final facebookButton = find.widgetWithText(
-        ElevatedButton,
-        'Đăng nhập với Facebook',
-      );
-      expect(facebookButton, findsOneWidget);
-
-      // Check button is not disabled
-      final button = tester.widget<ElevatedButton>(
-        find.ancestor(
-          of: find.text('Đăng nhập với Facebook'),
           matching: find.byType(ElevatedButton),
         ),
       );
@@ -165,7 +130,6 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      // Find the container with border radius
       final container = find.byWidgetPredicate((widget) {
         if (widget is Container && widget.decoration is BoxDecoration) {
           final decoration = widget.decoration as BoxDecoration;
@@ -186,7 +150,6 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      // Find container with gradient
       final gradientContainer = find.byWidgetPredicate((widget) {
         if (widget is Container && widget.decoration is BoxDecoration) {
           final decoration = widget.decoration as BoxDecoration;
@@ -195,7 +158,7 @@ void main() {
         return false;
       });
 
-      expect(gradientContainer, findsAtLeast(1));
+      expect(gradientContainer, findsAtLeastNWidgets(1));
     });
   });
 }

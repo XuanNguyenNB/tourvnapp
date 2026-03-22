@@ -1,8 +1,8 @@
 import 'dart:typed_data';
+import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../review/domain/entities/review.dart';
 import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/domain/entities/location.dart';
@@ -22,6 +22,7 @@ class ReviewFormDialog extends ConsumerStatefulWidget {
 }
 
 class _ReviewFormDialogState extends ConsumerState<ReviewFormDialog> {
+  static const _uuid = Uuid();
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _titleController;
@@ -44,6 +45,8 @@ class _ReviewFormDialogState extends ConsumerState<ReviewFormDialog> {
   double _uploadProgress = 0;
   Uint8List? _previewBytes;
 
+  String _generateId() => _uuid.v4().replaceAll('-', '').substring(0, 20);
+
   @override
   void initState() {
     super.initState();
@@ -62,9 +65,7 @@ class _ReviewFormDialogState extends ConsumerState<ReviewFormDialog> {
     );
     _selectedCategory = r?.category;
     _selectedDate = r?.createdAt ?? DateTime.now();
-    // Use Firestore autoId for new reviews; keep existing ID for edits
-    _generatedId =
-        r?.id ?? FirebaseFirestore.instance.collection('reviews').doc().id;
+    _generatedId = r?.id ?? _generateId();
 
     if (r?.relatedLocationIds != null) {
       _selectedLocationIds.addAll(r!.relatedLocationIds);

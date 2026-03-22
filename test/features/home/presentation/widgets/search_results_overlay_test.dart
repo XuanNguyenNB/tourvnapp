@@ -97,7 +97,7 @@ void main() {
       expect(find.text('Cà Phê Đà Nẵng'), findsOneWidget);
     });
 
-    testWidgets('should limit results to max 8 items', (tester) async {
+    testWidgets('should limit results to max 5 items per category', (tester) async {
       final locations = List.generate(
         12,
         (i) => createTestLocation(id: 'loc-$i', name: 'Location $i'),
@@ -122,12 +122,9 @@ void main() {
         ),
       );
 
-      // Should only show 8 items (max limit)
-      // Note: ListView may not render all items at once, verify by logic
-      expect(find.byType(SearchResultItem), findsAtLeastNWidgets(1));
-
-      // The overlay limits to 8, so location 8-11 should NOT appear
-      expect(find.text('Location 8'), findsNothing);
+      expect(find.text('Location 0'), findsOneWidget);
+      expect(find.text('Location 4'), findsOneWidget);
+      expect(find.text('Location 5'), findsNothing);
       expect(find.text('Location 11'), findsNothing);
     });
 

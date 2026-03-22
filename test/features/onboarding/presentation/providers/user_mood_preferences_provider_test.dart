@@ -76,7 +76,7 @@ void main() {
       final result = await container.read(userMoodPreferencesProvider.future);
 
       // Assert: Returns local moods
-      expect(result, containsAll(['adventure', 'foodie']));
+      expect(result, containsAll(['photography', 'foodie']));
       verify(() => mockOnboardingService.getMoodPreferencesLocally()).called(1);
     });
 

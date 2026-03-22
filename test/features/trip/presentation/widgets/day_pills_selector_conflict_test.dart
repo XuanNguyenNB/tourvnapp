@@ -56,11 +56,11 @@ void main() {
       );
 
       // Should display all 5 days
-      expect(find.text('Day 1'), findsOneWidget);
-      expect(find.text('Day 2'), findsOneWidget);
-      expect(find.text('Day 3'), findsOneWidget);
-      expect(find.text('Day 4'), findsOneWidget);
-      expect(find.text('Day 5'), findsOneWidget);
+      expect(find.text('Ngày 1'), findsOneWidget);
+      expect(find.text('Ngày 2'), findsOneWidget);
+      expect(find.text('Ngày 3'), findsOneWidget);
+      expect(find.text('Ngày 4'), findsOneWidget);
+      expect(find.text('Ngày 5'), findsOneWidget);
     });
 
     testWidgets('calls onDaySelected when pill is tapped', (tester) async {
@@ -80,7 +80,7 @@ void main() {
       );
 
       // Tap on Day 2
-      await tester.tap(find.text('Day 2'));
+      await tester.tap(find.text('Ngày 2'));
       await tester.pump();
 
       expect(selectedDay, equals(2));
@@ -106,7 +106,7 @@ void main() {
       // We can verify by looking for amber color in the decoration
       // The exact verification is tricky, but we can verify the widget tree
       final day2Pill = find.ancestor(
-        of: find.text('Day 2'),
+        of: find.text('Ngày 2'),
         matching: find.byType(AnimatedContainer),
       );
 

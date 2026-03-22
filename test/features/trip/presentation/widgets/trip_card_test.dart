@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tour_vn/features/home/domain/utils/destination_emoji_helper.dart';
 import 'package:tour_vn/features/trip/domain/entities/trip.dart';
 import 'package:tour_vn/features/trip/presentation/widgets/trip_card.dart';
 
@@ -73,8 +74,10 @@ void main() {
         ),
       );
 
-      // Should show map icon as placeholder
-      expect(find.byIcon(Icons.map_outlined), findsOneWidget);
+      expect(
+        find.text(DestinationEmojiHelper.getEmoji(testTrip.destinationId)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('triggers onTap callback when tapped', (

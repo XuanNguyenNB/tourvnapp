@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:tour_vn/features/admin/presentation/providers/admin_stats_provider.dart';
 import 'package:tour_vn/features/admin/presentation/screens/admin_overview_screen.dart';
 
@@ -31,39 +31,40 @@ void main() {
   Widget createWidgetUnderTest(AdminStats stats) {
     return ProviderScope(
       overrides: [adminStatsProvider.overrideWith((_) async => stats)],
-      child: const MaterialApp(home: AdminOverviewScreen()),
+      child: MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(1200, 900)),
+          child: const AdminOverviewScreen(),
+        ),
+      ),
     );
   }
 
-  testWidgets('Should display stat cards with correct values', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Should display stat cards with correct values', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest(mockStats));
     await tester.pumpAndSettle();
 
-    expect(find.text('Dashboard Overview'), findsOneWidget);
-    expect(find.text('42'), findsOneWidget); // Users
-    expect(find.text('5'), findsOneWidget); // Destinations
-    expect(find.text('120'), findsOneWidget); // Locations
-    expect(find.text('300'), findsOneWidget); // Reviews
-    expect(find.text('Total Users'), findsOneWidget);
-    expect(find.text('Destinations'), findsOneWidget);
-    expect(find.text('Locations'), findsOneWidget);
-    expect(find.text('Reviews'), findsOneWidget);
+    expect(find.text('Chào mừng trở lại, Admin'), findsOneWidget);
+    expect(find.text('42'), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('120'), findsOneWidget);
+    expect(find.text('300'), findsOneWidget);
+    expect(find.text('Người dùng'), findsOneWidget);
+    expect(find.text('Điểm đến'), findsOneWidget);
+    expect(find.text('Địa điểm'), findsOneWidget);
+    expect(find.text('Bài viết'), findsOneWidget);
   });
 
-  testWidgets('Should display recent activities', (WidgetTester tester) async {
+  testWidgets('Should display recent activities', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest(mockStats));
     await tester.pumpAndSettle();
 
-    expect(find.text('Recent Activities'), findsOneWidget);
+    expect(find.text('Hoạt động gần đây'), findsOneWidget);
     expect(find.text('Review Da Lat'), findsOneWidget);
     expect(find.text('Review Ninh Binh'), findsOneWidget);
   });
 
-  testWidgets('Should show empty message when no activities', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Should show empty message when no activities', (tester) async {
     final emptyStats = AdminStats(
       totalUsers: 0,
       totalDestinations: 0,
@@ -71,11 +72,11 @@ void main() {
       totalReviews: 0,
       pendingComments: 0,
       pendingAiDrafts: 0,
-      recentActivities: [],
+      recentActivities: const [],
     );
     await tester.pumpWidget(createWidgetUnderTest(emptyStats));
     await tester.pumpAndSettle();
 
-    expect(find.text('No recent activities'), findsOneWidget);
+    expect(find.text('Không có hoạt động nào gần đây'), findsOneWidget);
   });
 }

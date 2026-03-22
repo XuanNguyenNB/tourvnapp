@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../providers/admin_location_provider.dart';
 import '../providers/admin_destination_provider.dart';
@@ -16,6 +16,7 @@ class LocationFormDialog extends ConsumerStatefulWidget {
 }
 
 class _LocationFormDialogState extends ConsumerState<LocationFormDialog> {
+  static const _uuid = Uuid();
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _idController;
@@ -31,15 +32,13 @@ class _LocationFormDialogState extends ConsumerState<LocationFormDialog> {
   late TextEditingController _ratingController;
   String _selectedCategory = 'food';
 
+  String _generateId() => _uuid.v4().replaceAll('-', '').substring(0, 20);
+
   @override
   void initState() {
     super.initState();
     final loc = widget.location;
-    _idController = TextEditingController(
-      text:
-          loc?.id ??
-          FirebaseFirestore.instance.collection('locations').doc().id,
-    );
+    _idController = TextEditingController(text: loc?.id ?? _generateId());
     _nameController = TextEditingController(text: loc?.name ?? '');
     _destinationIdController = TextEditingController(
       text: loc?.destinationId ?? '',
@@ -325,6 +324,7 @@ class _LocationFormDialogState extends ConsumerState<LocationFormDialog> {
                                 return categoriesAsync.when(
                                   data: (categories) =>
                                       DropdownButtonFormField<String>(
+                                        isExpanded: true,
                                         value: _selectedCategory,
                                         decoration: const InputDecoration(
                                           labelText: 'Danh mục',
@@ -350,6 +350,7 @@ class _LocationFormDialogState extends ConsumerState<LocationFormDialog> {
                                   ),
                                   error: (_, __) =>
                                       DropdownButtonFormField<String>(
+                                        isExpanded: true,
                                         value: _selectedCategory,
                                         decoration: const InputDecoration(
                                           labelText: 'Danh mục',

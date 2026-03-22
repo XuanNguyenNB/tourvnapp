@@ -78,7 +78,7 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 
 final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
   final notifier = _RouterRefreshNotifier();
-  ref.listen(appSessionProvider, (_, __) {
+  ref.listen(appSessionProvider, (previous, next) {
     notifier.trigger();
   });
   ref.onDispose(notifier.dispose);

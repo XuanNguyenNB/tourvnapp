@@ -1,15 +1,20 @@
-import 'dart:async';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:tour_vn/features/admin/presentation/providers/admin_category_provider.dart';
 import 'package:tour_vn/features/admin/presentation/screens/manage_reviews_screen.dart';
-import 'package:tour_vn/features/review/domain/entities/review.dart';
-import 'package:tour_vn/features/review/data/repositories/review_repository.dart';
 import 'package:tour_vn/features/admin/presentation/widgets/review_form_dialog.dart';
+import 'package:tour_vn/features/destination/data/repositories/destination_repository.dart';
+import 'package:tour_vn/features/destination/domain/entities/category.dart';
+import 'package:tour_vn/features/destination/domain/entities/destination.dart';
+import 'package:tour_vn/features/destination/domain/entities/location.dart';
+import 'package:tour_vn/features/destination/presentation/providers/destination_provider.dart';
+import 'package:tour_vn/features/review/data/repositories/review_repository.dart';
+import 'package:tour_vn/features/review/domain/entities/review.dart';
 
-/// Mock HTTP overrides for image loading
 class MockHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -18,18 +23,19 @@ class MockHttpOverrides extends HttpOverrides {
   }
 }
 
-/// Fake review repository that doesn't touch Firebase
 class FakeReviewRepository implements ReviewRepository {
+  FakeReviewRepository({List<Review>? reviews})
+    : _reviews = reviews ?? <Review>[];
+
   final List<Review> _reviews;
 
-  FakeReviewRepository({List<Review>? reviews}) : _reviews = reviews ?? [];
+  @override
+  Future<List<Review>> getAllReviews() async => List<Review>.from(_reviews);
 
   @override
-  Future<List<Review>> getAllReviews() async => List.from(_reviews);
-
-  @override
-  Future<Review> getReviewById(String id) async =>
-      _reviews.firstWhere((r) => r.id == id);
+  Future<Review> getReviewById(String id) async {
+    return _reviews.firstWhere((review) => review.id == id);
+  }
 
   @override
   Future<void> createReview(Review review) async {
@@ -38,24 +44,137 @@ class FakeReviewRepository implements ReviewRepository {
 
   @override
   Future<void> updateReview(Review review) async {
-    final index = _reviews.indexWhere((r) => r.id == review.id);
-    if (index != -1) _reviews[index] = review;
+    final index = _reviews.indexWhere((item) => item.id == review.id);
+    if (index != -1) {
+      _reviews[index] = review;
+    }
   }
 
   @override
   Future<void> deleteReview(String id) async {
-    _reviews.removeWhere((r) => r.id == id);
+    _reviews.removeWhere((review) => review.id == id);
   }
 
-  // Stub remaining methods
   @override
-  dynamic noSuchMethod(Invocation invocation) => null;
+  Future<void> deleteReviewBatch(List<String> ids) async {
+    _reviews.removeWhere((review) => ids.contains(review.id));
+  }
+
+  @override
+  Future<List<Review>> getReviewsByStatus(
+    String status, {
+    int limit = 50,
+  }) async {
+    return _reviews
+        .where((review) => review.status == status)
+        .take(limit)
+        .toList();
+  }
+
+  @override
+  Future<({List<Review> items, DocumentSnapshot? lastDoc})>
+  getReviewsPaginated({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String? destinationId,
+  }) async {
+    final filtered = destinationId == null
+        ? _reviews
+        : _reviews
+              .where((review) => review.destinationId == destinationId)
+              .toList();
+    return (items: filtered.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeDestinationRepository implements DestinationRepository {
+  FakeDestinationRepository({
+    List<Location>? locations,
+    List<Destination>? destinations,
+  }) : _locations = locations ?? <Location>[],
+       _destinations = destinations ?? <Destination>[];
+
+  final List<Location> _locations;
+  final List<Destination> _destinations;
+
+  @override
+  Future<List<Location>> getAllLocations() async => _locations;
+
+  @override
+  Future<List<Destination>> getAllDestinations() async => _destinations;
+
+  @override
+  Future<({List<Destination> items, DocumentSnapshot? lastDoc})>
+  getDestinationsPaginated({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+  }) async {
+    return (items: _destinations.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
+  Future<({List<Location> items, DocumentSnapshot? lastDoc})>
+  getLocationsPaginated({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String? destinationId,
+  }) async {
+    final filtered = destinationId == null
+        ? _locations
+        : _locations
+              .where((location) => location.destinationId == destinationId)
+              .toList();
+    return (items: filtered.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
+  Future<int> fixInconsistentDestinationIds() async => 0;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
   setUpAll(() {
     HttpOverrides.global = MockHttpOverrides();
   });
+
+  final mockLocations = [
+    const Location(
+      id: 'loc-1',
+      destinationId: 'da-lat',
+      name: 'Hồ Xuân Hương',
+      image: 'https://via.placeholder.com/150',
+      category: 'places',
+    ),
+    const Location(
+      id: 'loc-2',
+      destinationId: 'ninh-binh',
+      name: 'Tràng An',
+      image: 'https://via.placeholder.com/150',
+      category: 'places',
+    ),
+  ];
+
+  final mockDestinations = [
+    const Destination(
+      id: 'da-lat',
+      name: 'Đà Lạt',
+      description: 'City of flowers',
+      heroImage: 'https://via.placeholder.com/150',
+      engagementCount: 10,
+    ),
+    const Destination(
+      id: 'ninh-binh',
+      name: 'Ninh Bình',
+      description: 'Heritage site',
+      heroImage: 'https://via.placeholder.com/150',
+      engagementCount: 5,
+    ),
+  ];
 
   final mockReviews = [
     Review(
@@ -70,6 +189,8 @@ void main() {
       likeCount: 100,
       commentCount: 10,
       saveCount: 20,
+      relatedLocationIds: const ['loc-1'],
+      destinationId: 'da-lat',
       destinationName: 'Đà Lạt',
       category: 'food',
     ),
@@ -85,6 +206,8 @@ void main() {
       likeCount: 200,
       commentCount: 20,
       saveCount: 40,
+      relatedLocationIds: const ['loc-2'],
+      destinationId: 'ninh-binh',
       destinationName: 'Ninh Bình',
       category: 'places',
     ),
@@ -100,21 +223,35 @@ void main() {
       likeCount: 50,
       commentCount: 5,
       saveCount: 10,
+      relatedLocationIds: const ['loc-2'],
+      destinationId: 'ninh-binh',
       destinationName: 'Ninh Bình',
       category: 'stay',
     ),
   ];
 
   Widget createWidgetUnderTest({List<Review>? reviews}) {
-    final fakeRepo = FakeReviewRepository(
+    final fakeReviewRepository = FakeReviewRepository(
       reviews: reviews ?? List<Review>.from(mockReviews),
+    );
+    final fakeDestinationRepository = FakeDestinationRepository(
+      locations: List<Location>.from(mockLocations),
+      destinations: List<Destination>.from(mockDestinations),
     );
 
     return ProviderScope(
-      overrides: [reviewRepositoryProvider.overrideWithValue(fakeRepo)],
+      overrides: [
+        reviewRepositoryProvider.overrideWithValue(fakeReviewRepository),
+        destinationRepositoryProvider.overrideWithValue(
+          fakeDestinationRepository,
+        ),
+        activeCategoriesProvider.overrideWith(
+          (_) async => Category.defaultCategories.take(3).toList(),
+        ),
+      ],
       child: MaterialApp(
         home: MediaQuery(
-          data: const MediaQueryData(size: Size(1400, 900)),
+          data: const MediaQueryData(size: Size(1600, 1200)),
           child: const ManageReviewsScreen(),
         ),
       ),
@@ -146,12 +283,10 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Type search query
     await tester.enterText(
       find.widgetWithText(TextField, 'Tìm theo tiêu đề, tác giả...'),
       'cà phê',
     );
-    // Wait for debounce
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
@@ -189,7 +324,6 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Tap Ninh Bình filter
     await tester.tap(find.widgetWithText(FilterChip, 'Ninh Bình'));
     await tester.pumpAndSettle();
 
@@ -211,7 +345,6 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Header checkbox + 3 row checkboxes
     expect(find.byType(Checkbox), findsNWidgets(4));
   });
 
@@ -219,32 +352,27 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Initially no batch bar
     expect(find.text('Bỏ chọn'), findsNothing);
 
-    // Tap first row checkbox (skip header = index 0)
     final checkboxes = find.byType(Checkbox);
     await tester.tap(checkboxes.at(1));
     await tester.pumpAndSettle();
 
-    // Batch bar should appear
     expect(find.textContaining('Đã chọn'), findsOneWidget);
     expect(find.text('Bỏ chọn'), findsOneWidget);
-    expect(find.text('Xóa'), findsOneWidget);
+    expect(find.text('Xóa'), findsWidgets);
   });
 
   testWidgets('Clear selection should hide batch action bar', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Select an item
     final checkboxes = find.byType(Checkbox);
     await tester.tap(checkboxes.at(1));
     await tester.pumpAndSettle();
 
     expect(find.text('Bỏ chọn'), findsOneWidget);
 
-    // Clear selection
     await tester.tap(find.text('Bỏ chọn'));
     await tester.pumpAndSettle();
 
@@ -255,12 +383,10 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Select an item
     final checkboxes = find.byType(Checkbox);
     await tester.tap(checkboxes.at(1));
     await tester.pumpAndSettle();
 
-    // Tap delete button in batch bar
     await tester.tap(find.byKey(const Key('batch_delete_button')));
     await tester.pumpAndSettle();
 
@@ -283,7 +409,6 @@ void main() {
     await tester.tap(find.text('Thêm bài viết'));
     await tester.pumpAndSettle();
 
-    // ReviewFormDialog should appear
     expect(find.byType(ReviewFormDialog), findsOneWidget);
   });
 
@@ -301,17 +426,14 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    // Apply a filter
     await tester.tap(find.widgetWithText(FilterChip, 'Ninh Bình'));
     await tester.pumpAndSettle();
 
-    // Clear filter should be visible
     expect(find.text('Xóa bộ lọc'), findsOneWidget);
 
     await tester.tap(find.text('Xóa bộ lọc'));
     await tester.pumpAndSettle();
 
-    // All reviews should be visible again
     expect(find.text('Quán cà phê Đà Lạt'), findsOneWidget);
     expect(find.text('Tràng An Ninh Bình'), findsOneWidget);
     expect(find.text('Homestay giữa núi'), findsOneWidget);

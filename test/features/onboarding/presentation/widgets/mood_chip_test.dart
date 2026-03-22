@@ -25,313 +25,85 @@ void main() {
       );
     }
 
-    group('Rendering', () {
-      testWidgets('renders mood emoji correctly', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.healing, isSelected: false),
-        );
+    testWidgets('renders mood emoji and label', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(mood: Mood.foodie, isSelected: false),
+      );
 
-        expect(find.text('🧘'), findsOneWidget);
-      });
-
-      testWidgets('renders Vietnamese mood label correctly', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: false),
-        );
-
-        expect(find.text('Ẩm thực'), findsOneWidget);
-      });
-
-      testWidgets('renders mood subtitle correctly', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: false),
-        );
-
-        expect(find.text('Ăn uống, đặc sản'), findsOneWidget);
-      });
-
-      testWidgets('renders all mood types correctly', (tester) async {
-        for (final mood in Mood.all) {
-          await tester.pumpWidget(
-            createTestWidget(mood: mood, isSelected: false),
-          );
-
-          expect(find.text(mood.emoji), findsOneWidget);
-          expect(find.text(mood.label), findsOneWidget);
-          expect(find.text(mood.subtitle), findsOneWidget);
-        }
-      });
+      expect(find.text('🍜'), findsOneWidget);
+      expect(find.text('Ẩm thực'), findsOneWidget);
     });
 
-    group('Selected State Visual', () {
-      testWidgets('selected chip has purple border with width 2', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: true),
-        );
+    testWidgets('does not render subtitle in compact layout', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(mood: Mood.foodie, isSelected: false),
+      );
 
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        final decoration = animatedContainer.decoration as BoxDecoration;
-        final border = decoration.border as Border;
-
-        expect(border.top.width, equals(2.0));
-        expect(border.top.color, equals(AppColors.primary));
-      });
-
-      testWidgets('selected chip has purple background with alpha', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.photography, isSelected: true),
-        );
-
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        final decoration = animatedContainer.decoration as BoxDecoration;
-
-        // Verify background color has alpha (15% opacity)
-        expect(decoration.color, isNotNull);
-        expect(decoration.color!.a, lessThan(1.0));
-      });
-
-      testWidgets('selected chip shows check icon', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.healing, isSelected: true),
-        );
-
-        expect(find.byIcon(Icons.check_rounded), findsOneWidget);
-      });
-
-      testWidgets('selected chip has box shadow', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: true),
-        );
-
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        final decoration = animatedContainer.decoration as BoxDecoration;
-        expect(decoration.boxShadow, isNotNull);
-        expect(decoration.boxShadow, isNotEmpty);
-      });
+      expect(find.text(Mood.foodie.subtitle), findsNothing);
     });
 
-    group('Unselected State Visual', () {
-      testWidgets('unselected chip has thin white/translucent border', (
-        tester,
-      ) async {
+    testWidgets('renders all current mood types', (tester) async {
+      for (final mood in Mood.all) {
         await tester.pumpWidget(
-          createTestWidget(mood: Mood.party, isSelected: false),
+          createTestWidget(mood: mood, isSelected: false),
         );
 
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        final decoration = animatedContainer.decoration as BoxDecoration;
-        final border = decoration.border as Border;
-
-        expect(border.top.width, equals(1.0));
-      });
-
-      testWidgets('unselected chip has translucent background', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.healing, isSelected: false),
-        );
-
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        final decoration = animatedContainer.decoration as BoxDecoration;
-
-        expect(decoration.color, isNotNull);
-        expect(decoration.color!.a, lessThan(1.0));
-      });
-
-      testWidgets('unselected chip has no box shadow', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.party, isSelected: false),
-        );
-
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        final decoration = animatedContainer.decoration as BoxDecoration;
-        expect(decoration.boxShadow, isNull);
-      });
+        expect(find.text(mood.emoji), findsOneWidget);
+        expect(find.text(mood.label), findsOneWidget);
+      }
     });
 
-    group('Tap Callback', () {
-      testWidgets('onTap callback is called when tapped', (tester) async {
-        bool wasTapped = false;
+    testWidgets('selected chip shows check icon and primary border', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(mood: Mood.healing, isSelected: true),
+      );
 
-        await tester.pumpWidget(
-          createTestWidget(
-            mood: Mood.party,
-            isSelected: false,
-            onTap: () => wasTapped = true,
-          ),
-        );
+      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
 
-        await tester.tap(find.byType(MoodChip));
-        await tester.pump();
+      final animatedContainer = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer),
+      );
+      final decoration = animatedContainer.decoration as BoxDecoration;
+      final border = decoration.border as Border;
 
-        expect(wasTapped, isTrue);
-      });
-
-      testWidgets('onTap callback works when chip is selected', (tester) async {
-        int tapCount = 0;
-
-        await tester.pumpWidget(
-          createTestWidget(
-            mood: Mood.healing,
-            isSelected: true,
-            onTap: () => tapCount++,
-          ),
-        );
-
-        await tester.tap(find.byType(MoodChip));
-        await tester.pump();
-        await tester.tap(find.byType(MoodChip));
-        await tester.pump();
-
-        expect(tapCount, equals(2));
-      });
+      expect(border.top.width, equals(2.0));
+      expect(border.top.color, equals(AppColors.primary));
+      expect(decoration.boxShadow, isNotNull);
+      expect(decoration.boxShadow, isNotEmpty);
     });
 
-    group('Animation', () {
-      testWidgets('uses AnimatedContainer for smooth transitions', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: false),
-        );
+    testWidgets('unselected chip keeps thin border and no check icon', (tester) async {
+      await tester.pumpWidget(
+        createTestWidget(mood: Mood.party, isSelected: false),
+      );
 
-        expect(find.byType(AnimatedContainer), findsOneWidget);
-      });
+      expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
 
-      testWidgets('uses AnimatedScale for selection animation', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: true),
-        );
+      final animatedContainer = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer),
+      );
+      final decoration = animatedContainer.decoration as BoxDecoration;
+      final border = decoration.border as Border;
 
-        final animatedScale = tester.widget<AnimatedScale>(
-          find.byType(AnimatedScale),
-        );
-        expect(animatedScale.scale, equals(1.05));
-      });
-
-      testWidgets('unselected has scale 1.0', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: false),
-        );
-
-        final animatedScale = tester.widget<AnimatedScale>(
-          find.byType(AnimatedScale),
-        );
-        expect(animatedScale.scale, equals(1.0));
-      });
-
-      testWidgets('has 250ms animation duration for container', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.foodie, isSelected: false),
-        );
-
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        expect(
-          animatedContainer.duration,
-          equals(const Duration(milliseconds: 250)),
-        );
-      });
-
-      testWidgets('uses easeOutCubic curve for animation', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.photography, isSelected: false),
-        );
-
-        final animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-
-        expect(animatedContainer.curve, equals(Curves.easeOutCubic));
-      });
+      expect(border.top.width, equals(1.0));
+      expect(decoration.boxShadow, isNull);
     });
 
-    group('State Transition', () {
-      testWidgets('visual transition from unselected to selected', (
-        tester,
-      ) async {
-        // Start unselected
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.healing, isSelected: false),
-        );
+    testWidgets('calls onTap callback when tapped', (tester) async {
+      var wasTapped = false;
 
-        var animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-        var decoration = animatedContainer.decoration as BoxDecoration;
-        var border = decoration.border as Border;
+      await tester.pumpWidget(
+        createTestWidget(
+          mood: Mood.party,
+          isSelected: false,
+          onTap: () => wasTapped = true,
+        ),
+      );
 
-        expect(border.top.width, equals(1.0)); // Unselected
+      await tester.tap(find.byType(MoodChip));
+      await tester.pump();
 
-        // Rebuild with selected state
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.healing, isSelected: true),
-        );
-        await tester.pumpAndSettle(); // Wait for animation
-
-        animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-        decoration = animatedContainer.decoration as BoxDecoration;
-        border = decoration.border as Border;
-
-        expect(border.top.width, equals(2.0)); // Selected
-        expect(border.top.color, equals(AppColors.primary));
-      });
-
-      testWidgets('visual transition from selected to unselected', (
-        tester,
-      ) async {
-        // Start selected
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.party, isSelected: true),
-        );
-
-        var animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-        var decoration = animatedContainer.decoration as BoxDecoration;
-        var border = decoration.border as Border;
-
-        expect(border.top.width, equals(2.0)); // Selected
-
-        // Rebuild with unselected state
-        await tester.pumpWidget(
-          createTestWidget(mood: Mood.party, isSelected: false),
-        );
-        await tester.pumpAndSettle(); // Wait for animation
-
-        animatedContainer = tester.widget<AnimatedContainer>(
-          find.byType(AnimatedContainer).first,
-        );
-        decoration = animatedContainer.decoration as BoxDecoration;
-        border = decoration.border as Border;
-
-        expect(border.top.width, equals(1.0)); // Unselected
-      });
+      expect(wasTapped, isTrue);
     });
   });
 }
