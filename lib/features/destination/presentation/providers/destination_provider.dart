@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tour_vn/core/providers/firebase_providers.dart';
 import '../../data/repositories/destination_repository.dart';
 import '../../domain/entities/destination.dart';
 
 /// Provider for DestinationRepository
 final destinationRepositoryProvider = Provider<DestinationRepository>((ref) {
-  return DestinationRepository();
+  return DestinationRepository(firestore: ref.watch(firestoreProvider));
 });
 
 /// Provider for fetching destination by ID

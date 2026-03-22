@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tour_vn/core/providers/firebase_providers.dart';
 import '../../domain/entities/review.dart';
 
 /// Repository for accessing review data from Firestore.
@@ -21,6 +22,19 @@ class ReviewRepository {
   /// Fetches all reviews
   Future<List<Review>> getAllReviews() async {
     final snapshot = await _firestore.collection('reviews').get();
+    return snapshot.docs.map((d) => Review.fromJson(d.data())).toList();
+  }
+
+  /// Fetch reviews filtered by status.
+  Future<List<Review>> getReviewsByStatus(
+    String status, {
+    int limit = 50,
+  }) async {
+    final snapshot = await _firestore
+        .collection('reviews')
+        .where('status', isEqualTo: status)
+        .limit(limit)
+        .get();
     return snapshot.docs.map((d) => Review.fromJson(d.data())).toList();
   }
 
@@ -101,11 +115,6 @@ class ReviewRepository {
     return snapshot.docs.map((d) => Review.fromJson(d.data())).toList();
   }
 }
-
-/// Provider for Firestore
-final firestoreProvider = Provider<FirebaseFirestore>((ref) {
-  return FirebaseFirestore.instance;
-});
 
 /// Provider for ReviewRepository
 final reviewRepositoryProvider = Provider<ReviewRepository>((ref) {

@@ -23,7 +23,8 @@ class AuthRepository {
     firebase_auth.FirebaseAuth? firebaseAuth,
     GoogleSignIn? googleSignIn,
   }) : _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
-       _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+       _googleSignIn =
+           googleSignIn ?? GoogleSignIn(scopes: ['email', 'profile']);
 
   /// Get and clear the pending migration anonymous UID
   /// Returns the anonymous UID if there's a pending migration, null otherwise

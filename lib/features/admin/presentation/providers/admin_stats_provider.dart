@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tour_vn/core/providers/firebase_providers.dart';
 
 class AdminStats {
   final int totalUsers;
@@ -22,7 +22,7 @@ class AdminStats {
 }
 
 final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
-  final firestore = FirebaseFirestore.instance;
+  final firestore = ref.watch(firestoreProvider);
 
   // Use count() aggregation instead of fetching full documents
   final usersCount = await firestore.collection('users').count().get();
@@ -34,18 +34,11 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
   final reviewsCount = await firestore.collection('reviews').count().get();
 
   // Count flagged (pending) comments
-  final reviewsForComments = await firestore.collection('reviews').get();
-  int pendingCount = 0;
-  final commentFutures = reviewsForComments.docs.map((reviewDoc) async {
-    final flaggedSnapshot = await firestore
-        .collection('reviews')
-        .doc(reviewDoc.id)
-        .collection('comments')
-        .where('status', isEqualTo: 'flagged')
-        .get();
-    pendingCount += flaggedSnapshot.docs.length;
-  });
-  await Future.wait(commentFutures);
+  final pendingComments = await firestore
+      .collectionGroup('comments')
+      .where('status', isEqualTo: 'flagged')
+      .count()
+      .get();
 
   // Count AI drafts across all content types
   final draftDestinations = await firestore
@@ -63,7 +56,8 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
       .where('status', isEqualTo: 'draft_ai')
       .count()
       .get();
-  final totalDrafts = (draftDestinations.count ?? 0) +
+  final totalDrafts =
+      (draftDestinations.count ?? 0) +
       (draftLocations.count ?? 0) +
       (draftReviews.count ?? 0);
 
@@ -89,9 +83,8 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
     totalDestinations: destinationsCount.count ?? 0,
     totalLocations: locationsCount.count ?? 0,
     totalReviews: reviewsCount.count ?? 0,
-    pendingComments: pendingCount,
+    pendingComments: pendingComments.count ?? 0,
     pendingAiDrafts: totalDrafts,
     recentActivities: recentActivities,
   );
 });
-

@@ -21,22 +21,19 @@ final pendingDestinationsProvider = FutureProvider<List<Destination>>((
   ref,
 ) async {
   final repo = ref.watch(destinationRepositoryProvider);
-  final all = await repo.getAllDestinations();
-  return all.where((d) => d.status == 'draft_ai').toList();
+  return repo.getDestinationsByStatus('draft_ai');
 });
 
 /// Fetches locations with status 'draft_ai' for admin review.
 final pendingLocationsProvider = FutureProvider<List<Location>>((ref) async {
   final repo = ref.watch(destinationRepositoryProvider);
-  final all = await repo.getAllLocations();
-  return all.where((l) => l.status == 'draft_ai').toList();
+  return repo.getLocationsByStatus('draft_ai');
 });
 
 /// Fetches reviews with status 'draft_ai' for admin review.
 final pendingReviewsProvider = FutureProvider<List<Review>>((ref) async {
   final repo = ref.watch(reviewRepositoryProvider);
-  final all = await repo.getAllReviews();
-  return all.where((r) => r.status == 'draft_ai').toList();
+  return repo.getReviewsByStatus('draft_ai');
 });
 
 // ── AI Content Notifier ──────────────────────────────────

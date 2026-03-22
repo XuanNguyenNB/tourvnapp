@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tour_vn/core/providers/firebase_providers.dart';
 import '../../domain/entities/location.dart';
 import '../../domain/entities/category.dart';
 import '../../data/repositories/destination_repository.dart';
@@ -7,7 +8,7 @@ import '../../../recommendation/presentation/providers/recommendation_provider.d
 
 /// Repository provider for destination data.
 final destinationRepositoryProvider = Provider<DestinationRepository>((ref) {
-  return DestinationRepository();
+  return DestinationRepository(firestore: ref.watch(firestoreProvider));
 });
 
 /// Repository provider for category data.

@@ -5,7 +5,10 @@ import '../../domain/entities/location.dart';
 
 /// Repository for fetching destination data from Firestore.
 class DestinationRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  DestinationRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
 
   /// Get destination by ID
   ///
@@ -21,6 +24,19 @@ class DestinationRepository {
   /// Get all destinations
   Future<List<Destination>> getAllDestinations() async {
     final snapshot = await _firestore.collection('destinations').get();
+    return snapshot.docs.map((d) => Destination.fromJson(d.data())).toList();
+  }
+
+  /// Get destinations filtered by status.
+  Future<List<Destination>> getDestinationsByStatus(
+    String status, {
+    int limit = 50,
+  }) async {
+    final snapshot = await _firestore
+        .collection('destinations')
+        .where('status', isEqualTo: status)
+        .limit(limit)
+        .get();
     return snapshot.docs.map((d) => Destination.fromJson(d.data())).toList();
   }
 
@@ -113,6 +129,19 @@ class DestinationRepository {
   /// Get all locations across all destinations
   Future<List<Location>> getAllLocations() async {
     final snapshot = await _firestore.collection('locations').get();
+    return snapshot.docs.map((d) => Location.fromJson(d.data())).toList();
+  }
+
+  /// Get locations filtered by status.
+  Future<List<Location>> getLocationsByStatus(
+    String status, {
+    int limit = 50,
+  }) async {
+    final snapshot = await _firestore
+        .collection('locations')
+        .where('status', isEqualTo: status)
+        .limit(limit)
+        .get();
     return snapshot.docs.map((d) => Location.fromJson(d.data())).toList();
   }
 

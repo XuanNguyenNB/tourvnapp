@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tour_vn/core/providers/firebase_providers.dart';
 import '../../domain/entities/comment.dart';
 
 /// Repository for managing review comments via Firestore.
@@ -15,7 +16,7 @@ class CommentRepository {
   final FirebaseFirestore _firestore;
 
   CommentRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Get comments collection reference for a review.
   CollectionReference<Map<String, dynamic>> _commentsRef(String reviewId) {
@@ -23,6 +24,19 @@ class CommentRepository {
         .collection('reviews')
         .doc(reviewId)
         .collection('comments');
+  }
+
+  Query<Map<String, dynamic>> _commentCollectionGroupQuery({
+    String? status,
+    int limit = 50,
+  }) {
+    Query<Map<String, dynamic>> query = _firestore.collectionGroup('comments');
+
+    if (status != null) {
+      query = query.where('status', isEqualTo: status);
+    }
+
+    return query.orderBy('createdAt', descending: true).limit(limit);
   }
 
   /// Fetch **approved** comments for a review, ordered by newest first.
@@ -71,9 +85,7 @@ class CommentRepository {
     // 2. Only increment commentCount for approved comments
     if (comment.status == 'approved') {
       final reviewRef = _firestore.collection('reviews').doc(reviewId);
-      batch.update(reviewRef, {
-        'commentCount': FieldValue.increment(1),
-      });
+      batch.update(reviewRef, {'commentCount': FieldValue.increment(1)});
     }
 
     await batch.commit();
@@ -100,9 +112,7 @@ class CommentRepository {
     // 2. Decrement commentCount only for approved comments
     if (wasApproved) {
       final reviewRef = _firestore.collection('reviews').doc(reviewId);
-      batch.update(reviewRef, {
-        'commentCount': FieldValue.increment(-1),
-      });
+      batch.update(reviewRef, {'commentCount': FieldValue.increment(-1)});
     }
 
     await batch.commit();
@@ -141,9 +151,7 @@ class CommentRepository {
     // 2. If approving a flagged comment, increment commentCount
     if (status == 'approved') {
       final reviewRef = _firestore.collection('reviews').doc(reviewId);
-      batch.update(reviewRef, {
-        'commentCount': FieldValue.increment(1),
-      });
+      batch.update(reviewRef, {'commentCount': FieldValue.increment(1)});
     }
 
     await batch.commit();
@@ -151,87 +159,31 @@ class CommentRepository {
 
   /// Fetch all flagged comments across all reviews.
   ///
-  /// Iterates over all reviews and collects flagged comments from each.
-  /// Avoids collectionGroup queries which require special indexes.
-  Future<List<Comment>> getFlaggedComments({
-    int limit = 50,
-  }) async {
-    // 1. Get all review IDs
-    final reviewsSnapshot = await _firestore.collection('reviews').get();
-
-    // 2. For each review, get flagged comments
-    final allComments = <Comment>[];
-    final futures = reviewsSnapshot.docs.map((reviewDoc) async {
-      final commentsSnapshot = await _firestore
-          .collection('reviews')
-          .doc(reviewDoc.id)
-          .collection('comments')
-          .where('status', isEqualTo: 'flagged')
-          .get();
-
-      for (final doc in commentsSnapshot.docs) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        data['reviewId'] = reviewDoc.id;
-        allComments.add(Comment.fromJson(data));
-      }
-    });
-
-    await Future.wait(futures);
-
-    // 3. Sort by newest first and limit
-    allComments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    if (allComments.length > limit) {
-      return allComments.sublist(0, limit);
-    }
-    return allComments;
+  /// Uses a collectionGroup query with indexes instead of review-by-review scans.
+  Future<List<Comment>> getFlaggedComments({int limit = 50}) async {
+    return getAllComments(status: 'flagged', limit: limit);
   }
 
   /// Fetch all comments (any status) across all reviews for admin.
   ///
   /// Optionally filter by [status].
-  /// Iterates over all reviews to avoid collectionGroup index issues.
-  Future<List<Comment>> getAllComments({
-    String? status,
-    int limit = 50,
-  }) async {
-    // 1. Get all review IDs
-    final reviewsSnapshot = await _firestore.collection('reviews').get();
+  Future<List<Comment>> getAllComments({String? status, int limit = 50}) async {
+    final snapshot = await _commentCollectionGroupQuery(
+      status: status,
+      limit: limit,
+    ).get();
 
-    // 2. For each review, get comments (optionally filtered by status)
-    final allComments = <Comment>[];
-    final futures = reviewsSnapshot.docs.map((reviewDoc) async {
-      Query<Map<String, dynamic>> query = _firestore
-          .collection('reviews')
-          .doc(reviewDoc.id)
-          .collection('comments');
-
-      if (status != null) {
-        query = query.where('status', isEqualTo: status);
-      }
-
-      final commentsSnapshot = await query.get();
-
-      for (final doc in commentsSnapshot.docs) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        data['reviewId'] = reviewDoc.id;
-        allComments.add(Comment.fromJson(data));
-      }
-    });
-
-    await Future.wait(futures);
-
-    // 3. Sort by newest first and limit
-    allComments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    if (allComments.length > limit) {
-      return allComments.sublist(0, limit);
-    }
-    return allComments;
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      data['reviewId'] =
+          data['reviewId'] ?? doc.reference.parent.parent?.id ?? '';
+      return Comment.fromJson(data);
+    }).toList();
   }
 }
 
 /// Provider for CommentRepository
 final commentRepositoryProvider = Provider<CommentRepository>((ref) {
-  return CommentRepository();
+  return CommentRepository(firestore: ref.watch(firestoreProvider));
 });
