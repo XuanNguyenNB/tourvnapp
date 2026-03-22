@@ -1,7 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/ai_backend_service.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/auto_plan_request.dart';
 import '../../domain/services/auto_plan_service.dart';
 import '../../domain/services/llm_enrichment_service.dart';
@@ -85,7 +85,7 @@ class AutoPlanNotifier extends Notifier<AutoPlanState> {
       }
 
       // 2. Load user context (profile + behavior signals).
-      final user = FirebaseAuth.instance.currentUser;
+      final user = ref.read(currentUserProvider);
 
       UserProfile? profile;
       Map<String, double> catInterests = {};

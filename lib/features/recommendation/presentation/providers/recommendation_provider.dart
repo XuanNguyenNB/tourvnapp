@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/repositories/user_profile_repository.dart';
 import '../../data/repositories/user_event_repository.dart';
 import '../../domain/entities/user_profile.dart';
@@ -14,7 +14,7 @@ import '../../../destination/presentation/providers/location_provider.dart';
 /// Stream provider for current user's profile.
 /// Returns null if user is not logged in or profile doesn't exist.
 final userProfileProvider = StreamProvider<UserProfile?>((ref) {
-  final user = FirebaseAuth.instance.currentUser;
+  final user = ref.watch(currentUserProvider);
   if (user == null) return Stream.value(null);
   final repo = ref.read(userProfileRepositoryProvider);
   return repo.watchProfile(user.uid);
@@ -31,7 +31,7 @@ final recommendedLocationsProvider =
       ref,
       destinationId,
     ) async {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = ref.watch(currentUserProvider);
 
       // 1. Load all candidate locations for this destination
       final allLocations = await ref.read(
@@ -88,7 +88,7 @@ Future<void> logUserEvent(
   List<String> locationTags = const [],
   int? ratingValue,
 }) async {
-  final user = FirebaseAuth.instance.currentUser;
+  final user = ref.read(currentUserProvider);
   if (user == null || user.isAnonymous) return; // Skip for anonymous users
 
   final repo = ref.read(userEventRepositoryProvider);
@@ -116,7 +116,7 @@ Future<void> logUserEventFromProvider(
   List<String> locationTags = const [],
   int? ratingValue,
 }) async {
-  final user = FirebaseAuth.instance.currentUser;
+  final user = ref.read(currentUserProvider);
   if (user == null || user.isAnonymous) return;
 
   final repo = ref.read(userEventRepositoryProvider);

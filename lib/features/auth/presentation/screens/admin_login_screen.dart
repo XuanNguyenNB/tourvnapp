@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tour_vn/core/exceptions/app_exception.dart';
-import 'package:tour_vn/core/providers/admin_claim_provider.dart';
 import 'package:tour_vn/core/theme/app_colors.dart';
 import 'package:tour_vn/core/theme/app_spacing.dart';
 import 'package:tour_vn/core/theme/app_typography.dart';
@@ -27,6 +26,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  String? _lastRejectedUid;
 
   @override
   void dispose() {
@@ -35,15 +35,18 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     super.dispose();
   }
 
-  void _submitForm() {
+  Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    ref
+    await ref
         .read(authNotifierProvider.notifier)
         .signInWithEmailAndPassword(email, password);
+    await ref
+        .read(appSessionProvider.notifier)
+        .refresh(forceTokenRefresh: true);
   }
 
   @override
@@ -53,25 +56,27 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final showBranding = screenWidth >= 900;
 
-    // Navigate to /admin after successful authentication
-    ref.listen(authStateProvider, (previous, next) {
-      next.whenData((user) {
-        if (user != null && !user.isAnonymous && context.mounted) {
-          // Check admin claim
-          ref.invalidate(adminClaimProvider);
-          final adminClaim = ref.read(adminClaimProvider);
-          adminClaim.whenData((isAdmin) {
-            if (isAdmin && context.mounted) {
-              context.go('/admin');
-            } else if (!isAdmin && context.mounted) {
-              _showError(
-                'Tài khoản này không có quyền quản trị viên.',
-              );
-              // Sign out non-admin user
-              ref.read(authNotifierProvider.notifier).signOut();
-            }
-          });
+    ref.listen(appSessionProvider, (previous, next) {
+      next.whenData((session) {
+        if (!context.mounted) return;
+
+        if (!session.isSignedIn || session.isAnonymous) {
+          _lastRejectedUid = null;
+          return;
         }
+
+        final uid = session.user?.uid;
+        if (session.isAdmin) {
+          _lastRejectedUid = null;
+          context.go('/admin');
+          return;
+        }
+
+        if (_lastRejectedUid == uid) return;
+
+        _lastRejectedUid = uid;
+        _showError('Tai khoan nay khong co quyen quan tri vien.');
+        ref.read(authNotifierProvider.notifier).signOut();
       });
     });
 
@@ -94,11 +99,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
       body: Row(
         children: [
           // ─────── LEFT: Branding Panel ───────
-          if (showBranding)
-            Expanded(
-              flex: 3,
-              child: _BrandingPanel(),
-            ),
+          if (showBranding) Expanded(flex: 3, child: _BrandingPanel()),
 
           // ─────── RIGHT: Login Form Panel ───────
           Expanded(
@@ -112,7 +113,9 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
               onToggleObscure: () {
                 setState(() => _obscurePassword = !_obscurePassword);
               },
-              onSubmit: _submitForm,
+              onSubmit: () {
+                _submitForm();
+              },
             ),
           ),
         ],
@@ -128,9 +131,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
         backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -158,9 +159,7 @@ class _BrandingPanel extends StatelessWidget {
       child: Stack(
         children: [
           // Subtle pattern overlay
-          Positioned.fill(
-            child: CustomPaint(painter: _GridPatternPainter()),
-          ),
+          Positioned.fill(child: CustomPaint(painter: _GridPatternPainter())),
 
           // Content
           Center(
@@ -209,9 +208,7 @@ class _BrandingPanel extends StatelessWidget {
                   // Tagline
                   Text(
                     'Hệ thống quản lý du lịch Việt Nam',
-                    style: AppTypography.bodyMD.copyWith(
-                      color: Colors.white60,
-                    ),
+                    style: AppTypography.bodyMD.copyWith(color: Colors.white60),
                     textAlign: TextAlign.center,
                   ),
 
@@ -263,10 +260,7 @@ class _FeatureItem extends StatelessWidget {
           child: Icon(icon, color: Colors.white70, size: 20),
         ),
         const SizedBox(width: AppSpacing.md),
-        Text(
-          text,
-          style: AppTypography.bodySM.copyWith(color: Colors.white70),
-        ),
+        Text(text, style: AppTypography.bodySM.copyWith(color: Colors.white70)),
       ],
     );
   }
@@ -434,8 +428,8 @@ class _LoginFormPanel extends StatelessWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor:
-                                AppColors.primary.withValues(alpha: 0.6),
+                            disabledBackgroundColor: AppColors.primary
+                                .withValues(alpha: 0.6),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -491,11 +485,7 @@ class _LoginFormPanel extends StatelessWidget {
       hintStyle: AppTypography.bodyMD.copyWith(
         color: AppColors.textSecondary.withValues(alpha: 0.5),
       ),
-      prefixIcon: Icon(
-        prefixIcon,
-        color: AppColors.textSecondary,
-        size: 20,
-      ),
+      prefixIcon: Icon(prefixIcon, color: AppColors.textSecondary, size: 20),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: const Color(0xFFF8FAFC),

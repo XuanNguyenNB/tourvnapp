@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tour_vn/core/providers/admin_claim_provider.dart';
-import 'package:tour_vn/core/services/onboarding_service.dart';
 import 'package:tour_vn/core/providers/firebase_providers.dart';
 import 'package:tour_vn/core/router/not_found_screen.dart';
 import 'package:tour_vn/core/router/scaffold_with_nav_bar.dart';
+import 'package:tour_vn/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tour_vn/features/home/presentation/screens/home_screen.dart';
 // import 'package:tour_vn/features/example/presentation/screens/example_screen.dart'; // REMOVED - Story 3-1
 // ExploreScreen removed - merged with HomeScreen
@@ -72,6 +72,19 @@ final _homeNavKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _tripsNavKey = GlobalKey<NavigatorState>(debugLabel: 'trips');
 final _profileNavKey = GlobalKey<NavigatorState>(debugLabel: 'profile');
 
+class _RouterRefreshNotifier extends ChangeNotifier {
+  void trigger() => notifyListeners();
+}
+
+final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
+  final notifier = _RouterRefreshNotifier();
+  ref.listen(appSessionProvider, (_, __) {
+    notifier.trigger();
+  });
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
 /// Riverpod Provider cho GoRouter.
 ///
 /// Router giờ "reactive" với Riverpod state — có thể:
@@ -82,41 +95,53 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: kIsWeb ? '/admin' : '/',
     debugLogDiagnostics: kDebugMode,
+    refreshListenable: ref.watch(_routerRefreshProvider),
     errorBuilder: (context, state) =>
         NotFoundScreen(errorMessage: state.error?.toString()),
-    // Redirect to onboarding if user hasn't completed it (mobile only)
     redirect: (context, state) {
-      // Skip redirect for web (admin) routes
-      if (kIsWeb) return null;
-
       final currentPath = state.uri.path;
+      final sessionAsync = ref.read(appSessionProvider);
+      final session = sessionAsync.asData?.value;
 
-      // Only redirect from home '/' to onboarding
-      // Don't redirect if already on onboarding or other routes
-      if (currentPath == '/') {
-        try {
-          final shouldShow = ref.read(shouldShowOnboardingProvider);
-          if (shouldShow) {
-            return '/onboarding';
-          }
-        } catch (_) {
-          // Provider not initialized yet, skip redirect
+      if (kIsWeb) {
+        if (currentPath == '/login' &&
+            session != null &&
+            session.isSignedIn &&
+            !session.isAnonymous) {
+          return session.isAdmin ? '/admin' : '/';
         }
+
+        if (currentPath.startsWith('/admin')) {
+          if (sessionAsync.isLoading) return null;
+          if (session == null || !session.isSignedIn || session.isAnonymous) {
+            return '/login';
+          }
+          if (!session.isAdmin) {
+            return '/';
+          }
+        }
+
+        return null;
       }
 
-      // If on onboarding but already completed, go to home
-      // UNLESS user is editing preferences from Profile (query param edit=true)
+      if (currentPath == '/login' && session != null && session.isSignedIn) {
+        return '/';
+      }
+
+      if (sessionAsync.isLoading) {
+        return null;
+      }
+
+      if (currentPath == '/' &&
+          session != null &&
+          session.shouldShowOnboarding) {
+        return '/onboarding';
+      }
+
       if (currentPath == '/onboarding') {
         final isEditing = state.uri.queryParameters['edit'] == 'true';
-        if (!isEditing) {
-          try {
-            final shouldShow = ref.read(shouldShowOnboardingProvider);
-            if (!shouldShow) {
-              return '/';
-            }
-          } catch (_) {
-            // Provider not initialized, allow onboarding
-          }
+        if (!isEditing && session != null && !session.shouldShowOnboarding) {
+          return '/';
         }
       }
 
@@ -278,49 +303,41 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/admin',
             name: 'admin-overview',
             builder: (context, state) => const AdminOverviewScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/categories',
             name: 'admin-categories',
             builder: (context, state) => const ManageCategoriesScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/destinations',
             name: 'admin-destinations',
             builder: (context, state) => const ManageDestinationsScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/locations',
             name: 'admin-locations',
             builder: (context, state) => const ManageLocationsScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/reviews',
             name: 'admin-reviews',
             builder: (context, state) => const ManageReviewsScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/comments',
             name: 'admin-comments',
             builder: (context, state) => const ManageCommentsScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/import',
             name: 'admin-import',
             builder: (context, state) => const ImportJsonScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
           GoRoute(
             path: '/admin/ai-content',
             name: 'admin-ai-content',
             builder: (context, state) => const AiContentHubScreen(),
-            redirect: (context, state) => _adminGuard(ref),
           ),
         ],
       ),

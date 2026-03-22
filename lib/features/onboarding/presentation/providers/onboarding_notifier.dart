@@ -6,7 +6,6 @@ import 'package:tour_vn/features/onboarding/domain/mood_category_mapping.dart';
 import 'package:tour_vn/features/recommendation/data/repositories/user_profile_repository.dart';
 import 'package:tour_vn/features/recommendation/domain/entities/user_profile.dart';
 
-
 /// State for the onboarding completion process.
 ///
 /// Tracks the loading and completion status during the
@@ -76,14 +75,20 @@ class OnboardingNotifier extends Notifier<OnboardingCompletionState> {
 
       // Always save locally first (for quick access on next launch)
       await onboardingService.saveMoodPreferencesLocally(moods);
-      await onboardingService.saveDestinationPreferencesLocally(selectedDestinationIds);
+      await onboardingService.saveDestinationPreferencesLocally(
+        selectedDestinationIds,
+      );
       await onboardingService.markOnboardingCompleted();
 
       // If user is authenticated (not anonymous), also save to Firestore
       if (currentUser != null && !currentUser.isAnonymous) {
         try {
           final userRepo = ref.read(userRepositoryProvider);
-          await userRepo.completeOnboarding(currentUser.uid, moodNames);
+          await userRepo.completeOnboarding(
+            currentUser.uid,
+            moodNames,
+            destinationIds: selectedDestinationIds,
+          );
         } catch (e) {
           // Log error but don't fail - local save was successful
         }
@@ -102,6 +107,7 @@ class OnboardingNotifier extends Notifier<OnboardingCompletionState> {
         }
       }
 
+      ref.invalidate(appSessionProvider);
       state = state.copyWith(isLoading: false, isCompleted: true);
 
       return true;
@@ -168,6 +174,7 @@ class OnboardingNotifier extends Notifier<OnboardingCompletionState> {
         }
       }
 
+      ref.invalidate(appSessionProvider);
       state = state.copyWith(isLoading: false, isCompleted: true);
 
       return true;

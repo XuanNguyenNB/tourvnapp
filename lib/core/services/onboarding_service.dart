@@ -2,6 +2,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tour_vn/features/onboarding/domain/entities/mood.dart';
 
+class LocalOnboardingState {
+  final bool onboardingCompleted;
+  final bool onboardingSkipped;
+  final List<String> moodPreferenceNames;
+  final List<String> destinationPreferenceIds;
+
+  const LocalOnboardingState({
+    required this.onboardingCompleted,
+    required this.onboardingSkipped,
+    this.moodPreferenceNames = const [],
+    this.destinationPreferenceIds = const [],
+  });
+
+  bool get shouldShowOnboarding => !onboardingCompleted && !onboardingSkipped;
+
+  bool get hasAnyData =>
+      onboardingCompleted ||
+      onboardingSkipped ||
+      moodPreferenceNames.isNotEmpty ||
+      destinationPreferenceIds.isNotEmpty;
+}
+
 /// Service for managing onboarding state and mood preferences locally.
 /// Uses SharedPreferences for persistence across app restarts.
 ///
@@ -60,6 +82,7 @@ class OnboardingService {
   /// the onboarding screen again on subsequent app launches.
   Future<void> markOnboardingCompleted() async {
     await _prefs.setBool(_keyOnboardingCompleted, true);
+    await _prefs.setBool(_keyOnboardingSkipped, false);
   }
 
   /// Mark onboarding as skipped.
@@ -133,6 +156,30 @@ class OnboardingService {
   List<String> getMoodPreferenceNames() {
     return _prefs.getStringList(_keyMoodPreferences) ?? [];
   }
+
+  LocalOnboardingState getStateSnapshot() {
+    return LocalOnboardingState(
+      onboardingCompleted: isOnboardingCompleted(),
+      onboardingSkipped: isOnboardingSkipped(),
+      moodPreferenceNames: getMoodPreferenceNames(),
+      destinationPreferenceIds: getDestinationPreferencesLocally(),
+    );
+  }
+
+  Future<void> applySyncedState({
+    required bool onboardingCompleted,
+    required bool onboardingSkipped,
+    List<String> moodPreferenceNames = const [],
+    List<String> destinationPreferenceIds = const [],
+  }) async {
+    await _prefs.setBool(_keyOnboardingCompleted, onboardingCompleted);
+    await _prefs.setBool(_keyOnboardingSkipped, onboardingSkipped);
+    await _prefs.setStringList(_keyMoodPreferences, moodPreferenceNames);
+    await _prefs.setStringList(
+      _keyDestinationPreferences,
+      destinationPreferenceIds,
+    );
+  }
 }
 
 /// Provider for OnboardingService.
@@ -176,5 +223,5 @@ final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) {
 /// ```
 final shouldShowOnboardingProvider = Provider<bool>((ref) {
   final service = ref.watch(onboardingServiceProvider);
-  return service.shouldShowOnboarding();
+  return service.getStateSnapshot().shouldShowOnboarding;
 });

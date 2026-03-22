@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';
 import '../../../recommendation/data/repositories/user_event_repository.dart';
 import '../../../recommendation/data/repositories/user_profile_repository.dart';
@@ -49,7 +49,7 @@ final homeRecommendationsProvider =
       ref,
       params,
     ) async {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = ref.watch(currentUserProvider);
 
       // 1. Load all locations
       final destRepo = ref.watch(destinationRepositoryProvider);

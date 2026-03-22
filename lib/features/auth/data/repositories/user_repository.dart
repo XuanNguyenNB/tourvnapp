@@ -2,6 +2,26 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tour_vn/core/exceptions/app_exception.dart';
 import 'package:tour_vn/features/auth/domain/entities/user.dart';
 
+class UserOnboardingData {
+  final List<String> moodPreferences;
+  final List<String> destinationPreferenceIds;
+  final bool onboardingCompleted;
+  final bool onboardingSkipped;
+
+  const UserOnboardingData({
+    this.moodPreferences = const [],
+    this.destinationPreferenceIds = const [],
+    this.onboardingCompleted = false,
+    this.onboardingSkipped = false,
+  });
+
+  bool get hasAnyData =>
+      onboardingCompleted ||
+      onboardingSkipped ||
+      moodPreferences.isNotEmpty ||
+      destinationPreferenceIds.isNotEmpty;
+}
+
 /// Repository for user profile data in Firestore
 /// Handles CRUD operations for user documents in 'users' collection
 class UserRepository {
@@ -76,6 +96,41 @@ class UserRepository {
     }
   }
 
+  Future<UserOnboardingData?> getOnboardingData(String uid) async {
+    try {
+      final doc = await _usersCollection.doc(uid).get();
+      if (!doc.exists || doc.data() == null) return null;
+
+      final data = doc.data()!;
+      return UserOnboardingData(
+        moodPreferences:
+            (data['moodPreferences'] as List<dynamic>?)
+                ?.map((entry) => entry as String)
+                .toList() ??
+            const [],
+        destinationPreferenceIds:
+            (data['destinationPreferences'] as List<dynamic>?)
+                ?.map((entry) => entry as String)
+                .toList() ??
+            const [],
+        onboardingCompleted: data['onboardingCompleted'] as bool? ?? false,
+        onboardingSkipped: data['onboardingSkipped'] as bool? ?? false,
+      );
+    } on FirebaseException catch (e) {
+      throw AppException(
+        code: AppException.FIRESTORE_ERROR,
+        message: 'Khong the tai du lieu onboarding.',
+        details: 'FirestoreException: ${e.code} - ${e.message}',
+      );
+    } catch (e) {
+      throw AppException(
+        code: AppException.UNKNOWN_ERROR,
+        message: 'Da xay ra loi khi tai du lieu onboarding.',
+        details: e.toString(),
+      );
+    }
+  }
+
   /// Check if user document exists in Firestore
   Future<bool> userExists(String uid) async {
     try {
@@ -134,10 +189,15 @@ class UserRepository {
   /// Sets the onboardingCompleted flag to true in Firestore.
   /// This ensures the user won't see onboarding again after signing in
   /// on a different device.
-  Future<void> markOnboardingCompleted(String uid) async {
+  Future<void> markOnboardingCompleted(
+    String uid, {
+    List<String> destinationIds = const [],
+  }) async {
     try {
       await _usersCollection.doc(uid).set({
         'onboardingCompleted': true,
+        'onboardingSkipped': false,
+        'destinationPreferences': destinationIds,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } on FirebaseException catch (e) {
@@ -158,11 +218,17 @@ class UserRepository {
   /// Save both mood preferences and mark onboarding complete (Story 6.3)
   ///
   /// Convenience method to perform both operations in a single write.
-  Future<void> completeOnboarding(String uid, List<String> moods) async {
+  Future<void> completeOnboarding(
+    String uid,
+    List<String> moods, {
+    List<String> destinationIds = const [],
+  }) async {
     try {
       await _usersCollection.doc(uid).set({
         'moodPreferences': moods,
+        'destinationPreferences': destinationIds,
         'onboardingCompleted': true,
+        'onboardingSkipped': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } on FirebaseException catch (e) {
@@ -192,6 +258,7 @@ class UserRepository {
         'onboardingSkipped': true,
         'onboardingCompleted': true,
         'moodPreferences': <String>[], // Empty = no personalization
+        'destinationPreferences': <String>[],
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } on FirebaseException catch (e) {

@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -275,8 +274,8 @@ class VisualPlannerNotifier extends Notifier<VisualPlannerState> {
 
     // Check if user is anonymous BEFORE setting loading state
     // This provides immediate feedback without UI flicker
-    final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
-    if (firebaseUser == null || firebaseUser.isAnonymous) {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.isAnonymous) {
       debugPrint('🔵 [SaveTrip] User is anonymous, needs sign-in');
       return SaveTripResult.needsSignIn;
     }
@@ -284,7 +283,7 @@ class VisualPlannerNotifier extends Notifier<VisualPlannerState> {
     state = state.copyWith(isSaving: true, clearError: true);
 
     try {
-      final userId = firebaseUser.uid;
+      final userId = currentUser.uid;
       final pendingState = ref.read(pendingTripProvider);
       final tripRepo = ref.read(tripRepositoryProvider);
 

@@ -1,7 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/repositories/trip_repository.dart';
 import '../../domain/entities/trip.dart';
 import '../../domain/services/trip_creation_service.dart';
@@ -84,26 +84,26 @@ class TripSaveNotifier extends Notifier<TripSaveState> {
     try {
       // Get current user directly from Firebase Auth (not cached provider)
       // This ensures we have the latest auth state after sign-in
-      final firebaseUser = FirebaseAuth.instance.currentUser;
+      final currentUser = ref.read(currentUserProvider);
 
       debugPrint(
-        '🔵 [TripSave] User: ${firebaseUser?.uid ?? 'null'}, isAnonymous: ${firebaseUser?.isAnonymous}',
+        '🔵 [TripSave] User: ${currentUser?.uid ?? 'null'}, isAnonymous: ${currentUser?.isAnonymous}',
       );
 
-      if (firebaseUser == null) {
+      if (currentUser == null) {
         state = const TripSaveError('Vui lòng đăng nhập để lưu chuyến đi');
         debugPrint('🔴 [TripSave] Error: User is null');
         return false;
       }
 
       // Check if still anonymous
-      if (firebaseUser.isAnonymous) {
+      if (currentUser.isAnonymous) {
         state = const TripSaveNeedsSignIn();
         debugPrint('🔵 [TripSave] User is anonymous, needs sign-in');
         return false;
       }
 
-      final userId = firebaseUser.uid;
+      final userId = currentUser.uid;
       final pendingState = ref.read(pendingTripProvider);
 
       debugPrint(
@@ -219,23 +219,15 @@ final tripSaveProvider = NotifierProvider<TripSaveNotifier, TripSaveState>(
   TripSaveNotifier.new,
 );
 
-/// Stream provider for Firebase auth state changes.
-final _firebaseAuthStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
-});
-
 /// Provider for checking if user is authenticated.
 final isAuthenticatedProvider = Provider<bool>((ref) {
-  final authState = ref.watch(_firebaseAuthStateProvider);
-  return authState.hasValue &&
-      authState.value != null &&
-      !authState.value!.isAnonymous;
+  final user = ref.watch(currentUserProvider);
+  return user != null && !user.isAnonymous;
 });
 
 /// Provider for current user ID.
 final currentUserIdProvider = Provider<String?>((ref) {
-  final authState = ref.watch(_firebaseAuthStateProvider);
-  return authState.value?.uid;
+  return ref.watch(currentUserProvider)?.uid;
 });
 
 /// Provider that auto-saves pending trips when user signs in.

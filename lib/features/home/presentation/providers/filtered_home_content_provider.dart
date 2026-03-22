@@ -1,10 +1,10 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../domain/entities/content_item.dart';
 import './home_provider.dart';
 import './home_filter_provider.dart';
 import './user_location_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../onboarding/presentation/providers/user_mood_preferences_provider.dart';
 import '../../../recommendation/data/repositories/user_profile_repository.dart';
 import '../../../../core/services/onboarding_service.dart';
@@ -84,7 +84,7 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
   Future<Set<String>> _loadPreferredDestinationIds() async {
     // 1. Try Firestore (authenticated users)
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = ref.read(currentUserProvider);
       if (user != null) {
         final profileRepo = ref.read(userProfileRepositoryProvider);
         final profile = await profileRepo.getProfile(user.uid);
@@ -118,7 +118,8 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
     required Position? userPosition,
     required Set<String> preferredDestinationIds,
   }) {
-    final hasAnySignal = userMoods.isNotEmpty ||
+    final hasAnySignal =
+        userMoods.isNotEmpty ||
         userPosition != null ||
         preferredDestinationIds.isNotEmpty;
 
@@ -130,8 +131,9 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
       // ── 1. Mood match score (weight: 40%) ──
       if (userMoods.isNotEmpty) {
         final contentMoods = _getMoodsFromContent(item);
-        final matchCount =
-            contentMoods.where((m) => userMoods.contains(m)).length;
+        final matchCount = contentMoods
+            .where((m) => userMoods.contains(m))
+            .length;
         score += 0.4 * (matchCount / userMoods.length);
       }
 
@@ -139,7 +141,8 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
       if (userPosition != null) {
         final coords = _getCoordinates(item);
         if (coords != null) {
-          final distKm = Geolocator.distanceBetween(
+          final distKm =
+              Geolocator.distanceBetween(
                 userPosition.latitude,
                 userPosition.longitude,
                 coords.$1,
