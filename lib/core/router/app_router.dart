@@ -16,7 +16,10 @@ import 'package:tour_vn/features/trip/presentation/screens/create_trip_screen.da
 import 'package:tour_vn/features/trip/presentation/screens/visual_planner_screen.dart';
 import 'package:tour_vn/features/itinerary/presentation/screens/ai_plan_screen.dart';
 import 'package:tour_vn/features/profile/presentation/screens/profile_screen.dart';
+import 'package:tour_vn/features/profile/presentation/screens/edit_profile_screen.dart';
+import 'package:tour_vn/features/profile/presentation/screens/about_screen.dart';
 import 'package:tour_vn/features/auth/presentation/screens/login_screen.dart';
+import 'package:tour_vn/features/auth/presentation/screens/admin_login_screen.dart';
 import 'package:tour_vn/features/destination/presentation/screens/destination_hub_screen.dart'; // Story 3-2
 import 'package:tour_vn/features/destination/presentation/screens/location_detail_screen.dart'; // Story 3-7
 import 'package:tour_vn/features/destination/domain/entities/location.dart'; // Story 3-7
@@ -131,7 +134,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         path: '/login',
         name: AppRoutes.login,
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) =>
+            kIsWeb ? const AdminLoginScreen() : const LoginScreen(),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
@@ -242,6 +246,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/profile',
                 name: AppRoutes.profile,
                 builder: (context, state) => const ProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => const EditProfileScreen(),
+                  ),
+                  GoRoute(
+                    path: 'about',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => const AboutScreen(),
+                  ),
+                ],
               ),
             ],
           ),

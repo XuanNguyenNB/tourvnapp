@@ -20,9 +20,6 @@ enum Mood {
   /// Nghỉ dưỡng, thư giãn, wellness
   healing('Chữa lành', '🧘', 'Nghỉ dưỡng, thư giãn'),
 
-  /// Hoạt động ngoài trời, trải nghiệm mạo hiểm
-  adventure('Phiêu lưu', '🏔️', 'Khám phá, mạo hiểm'),
-
   /// Ẩm thực, khám phá món ăn địa phương
   foodie('Ẩm thực', '🍜', 'Ăn uống, đặc sản'),
 

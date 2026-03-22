@@ -133,29 +133,136 @@ class AiContentNotifier extends Notifier<AiContentState> {
     }
   }
 
-  /// Generate a review/article and save as draft.
+  /// Generate a review/article with context-aware location data.
+  ///
+  /// Loads existing locations from Firestore for the selected destination,
+  /// passes them to the AI so it writes about real places. After generation,
+  /// auto-fills heroImage from the first related location.
   Future<void> generateReview({
     required String prompt,
     String? destinationId,
     String? destinationName,
+    String articleStyle = 'review',
   }) async {
     state = state.copyWith(isGenerating: true, error: null);
     try {
       final service = ref.read(aiContentServiceProvider);
+      final destRepo = ref.read(destinationRepositoryProvider);
+
+      // Load existing locations for context
+      List<Map<String, dynamic>>? locationContext;
+      List<Location>? allLocs;
+      if (destinationId != null) {
+        allLocs = await destRepo.getLocationsByDestination(destinationId);
+        locationContext = allLocs
+            .where((l) => l.status == 'published')
+            .map((l) => {
+                  'id': l.id,
+                  'name': l.name,
+                  'category': l.category,
+                  'tags': l.tags,
+                  'rating': l.rating,
+                  'address': l.address,
+                })
+            .toList();
+      }
+
       final json = await service.generateReview(
         prompt: prompt,
         destinationId: destinationId,
         destinationName: destinationName,
+        existingLocations: locationContext,
+        articleStyle: articleStyle,
       );
 
+      var review = Review.fromJson(json);
+
+      // Auto-fill heroImage from first related location
+      if (review.heroImage.isEmpty &&
+          review.relatedLocationIds.isNotEmpty &&
+          allLocs != null) {
+        final firstLoc = allLocs.cast<Location?>().firstWhere(
+              (l) => l!.id == review.relatedLocationIds.first,
+              orElse: () => null,
+            );
+        if (firstLoc != null && firstLoc.image.isNotEmpty) {
+          review = review.copyWith(heroImage: firstLoc.image);
+        }
+      }
+
       final repo = ref.read(reviewRepositoryProvider);
-      final review = Review.fromJson(json);
       await repo.createReview(review);
 
       state = state.copyWith(
         isGenerating: false,
         lastGeneratedType: 'review',
         generatedCount: 1,
+      );
+
+      ref.invalidate(pendingReviewsProvider);
+    } catch (e) {
+      state = state.copyWith(isGenerating: false, error: e.toString());
+    }
+  }
+
+  /// Batch generate multiple reviews for a destination.
+  ///
+  /// Each article will have a different style, focus, and location set.
+  Future<void> generateMultipleReviews({
+    required String destinationId,
+    required String destinationName,
+    int count = 3,
+  }) async {
+    state = state.copyWith(isGenerating: true, error: null);
+    try {
+      final service = ref.read(aiContentServiceProvider);
+      final destRepo = ref.read(destinationRepositoryProvider);
+
+      // Load existing locations
+      final allLocs =
+          await destRepo.getLocationsByDestination(destinationId);
+      final locationContext = allLocs
+          .where((l) => l.status == 'published')
+          .map((l) => {
+                'id': l.id,
+                'name': l.name,
+                'category': l.category,
+                'tags': l.tags,
+                'rating': l.rating,
+                'address': l.address,
+              })
+          .toList();
+
+      final jsonList = await service.generateMultipleReviews(
+        destinationName: destinationName,
+        destinationId: destinationId,
+        existingLocations: locationContext,
+        count: count,
+      );
+
+      final repo = ref.read(reviewRepositoryProvider);
+      for (final json in jsonList) {
+        var review = Review.fromJson(json);
+
+        // Auto-fill heroImage
+        if (review.heroImage.isEmpty &&
+            review.relatedLocationIds.isNotEmpty) {
+          final firstLoc = allLocs.cast<Location?>().firstWhere(
+                (l) => l!.id == review.relatedLocationIds.first,
+                orElse: () => null,
+              );
+          if (firstLoc != null && firstLoc.image.isNotEmpty) {
+            review = review.copyWith(heroImage: firstLoc.image);
+          }
+        }
+
+        await repo.createReview(review);
+      }
+
+      state = state.copyWith(
+        isGenerating: false,
+        lastGeneratedType: 'review',
+        generatedCount: jsonList.length,
       );
 
       ref.invalidate(pendingReviewsProvider);

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tour_vn/core/widgets/glass_card.dart';
 import 'package:tour_vn/features/auth/presentation/screens/login_screen.dart';
 import 'package:tour_vn/features/auth/presentation/widgets/google_sign_in_button.dart';
-import 'package:tour_vn/features/auth/presentation/widgets/facebook_sign_in_button.dart';
 
 void main() {
   group('LoginScreen Widget Tests', () {
@@ -34,13 +33,6 @@ void main() {
       await tester.pump();
 
       expect(find.byType(GoogleSignInButton), findsOneWidget);
-    });
-
-    testWidgets('should display FacebookSignInButton widget', (tester) async {
-      await tester.pumpWidget(createLoginScreen());
-      await tester.pump();
-
-      expect(find.byType(FacebookSignInButton), findsOneWidget);
     });
 
     testWidgets('should display anonymous browse option', (tester) async {

@@ -17,7 +17,9 @@ import '../../../destination/domain/entities/location.dart';
 class RecommendationService {
   const RecommendationService();
 
-  // ──── Weight constants ────
+  // ──── Weight constants (base values) ────
+  // When profile is available, these are used directly.
+  // When profile is null, quality + proximity get boosted.
   static const double _wCategory = 0.20;
   static const double _wTags = 0.15;
   static const double _wQuality = 0.15;
@@ -102,37 +104,47 @@ class RecommendationService {
     final reasons = <String>[];
     double score = 0;
 
+    // Dynamic weights: boost quality + proximity when profile is missing
+    final hasProfile = profile != null && profile.hasPreferences;
+    final wQuality = hasProfile ? _wQuality : 0.30;
+    final wProximity = hasProfile ? _wProximity : 0.30;
+    final wCategory = hasProfile ? _wCategory : 0.0;
+    final wTags = hasProfile ? _wTags : 0.0;
+    final wBehavior = hasProfile ? _wBehavior : 0.05;
+    final wNovelty = hasProfile ? _wNovelty : 0.05;
+    final wContext = hasProfile ? _wContext : 0.0;
+
     // 1. Category match
     final catMatch = _categoryMatchScore(loc, profile);
     if (catMatch > 0) {
       reasons.add('Hợp sở thích ${_categoryLabel(loc.category)}');
     }
-    score += _wCategory * catMatch;
+    score += wCategory * catMatch;
 
     // 2. Tag match (Jaccard similarity)
     final tagMatch = _tagMatchScore(loc, profile);
     if (tagMatch > 0.3) reasons.add('Phù hợp phong cách');
-    score += _wTags * tagMatch;
+    score += wTags * tagMatch;
 
     // 3. Quality (rating + popularity)
     final quality = _qualityScore(loc);
     if (quality > 0.7) reasons.add('Được đánh giá cao');
-    score += _wQuality * quality;
+    score += wQuality * quality;
 
     // 4. Behavior affinity (from interaction history)
     final behavior = _behaviorScore(loc, categoryInterests, tagInterests);
     if (behavior > 0.3) reasons.add('Dựa trên hoạt động gần đây');
-    score += _wBehavior * behavior;
+    score += wBehavior * behavior;
 
     // 5. Novelty (locations not yet interacted)
     final novelty = interactedLocationIds.contains(loc.id) ? 0.0 : 1.0;
     if (novelty > 0) reasons.add('Chưa khám phá');
-    score += _wNovelty * novelty;
+    score += wNovelty * novelty;
 
     // 6. Context boost (group type, budget match)
     final context = _contextScore(loc, profile);
     if (context > 0.3) reasons.add('Phù hợp nhóm đi');
-    score += _wContext * context;
+    score += wContext * context;
 
     // 7. Proximity scoring (GPS-based)
     final proximity = _proximityScore(loc, userLat, userLng);
@@ -145,7 +157,7 @@ class RecommendationService {
       );
       reasons.add('📍 Cách ${_formatDist(dist)}');
     }
-    score += _wProximity * proximity;
+    score += wProximity * proximity;
 
     // 8. Category boost (e.g. check-in → places)
     if (boostCategory != null && loc.category == boostCategory) {
@@ -161,11 +173,11 @@ class RecommendationService {
       reasons.add('🗺️ Nơi bạn muốn đến');
     }
 
-    // Fallback: if no profile, boost popular items
-    if (profile == null || !profile.hasPreferences) {
-      if (loc.saveCount > 50 || loc.viewCount > 200) {
-        reasons.add('Đang thịnh hành');
-      }
+    // Fallback: if no profile, add popularity score boost
+    if (!hasProfile) {
+      final popScore = (loc.saveCount > 50 || loc.viewCount > 200) ? 0.15 : 0.0;
+      score += popScore;
+      if (popScore > 0) reasons.add('Đang thịnh hành');
     }
 
     return _ScoredLocation(
@@ -176,7 +188,7 @@ class RecommendationService {
   }
 
   double _categoryMatchScore(Location loc, UserProfile? profile) {
-    if (profile == null || profile.preferredCategoryIds.isEmpty) return 0.3;
+    if (profile == null || profile.preferredCategoryIds.isEmpty) return 0.0;
     return profile.preferredCategoryIds.contains(loc.category) ? 1.0 : 0.0;
   }
 

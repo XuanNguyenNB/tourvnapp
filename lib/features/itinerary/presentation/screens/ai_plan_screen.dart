@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';
@@ -16,6 +17,7 @@ import '../../../recommendation/domain/entities/user_profile.dart';
 import '../../../trip/presentation/providers/pending_trip_provider.dart';
 import '../../domain/models/auto_plan_request.dart';
 import '../../domain/services/auto_plan_service.dart';
+import '../../../../core/config/app_config.dart';
 import '../providers/auto_plan_provider.dart';
 
 /// Tags available for filtering.
@@ -70,6 +72,11 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
   bool _useBehavior = true;
   bool _diversify = true;
 
+  // ── Expandable stop cards ──
+  final Set<String> _expandedStops = {};
+  final Map<String, String> _lazyTips = {};
+  final Set<String> _loadingTips = {};
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -83,27 +90,31 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPickingDest = _selectedDestination == null;
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFBFC),
+      backgroundColor: const Color(0xFFF8F9FE),
+      extendBodyBehindAppBar: isPickingDest,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: isPickingDest ? Colors.transparent : Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: BackButton(
-          color: AppColors.textPrimary,
+          color: isPickingDest ? Colors.white : AppColors.textPrimary,
           onPressed: _handleBack,
         ),
-        title: Text(
-          _selectedDestination == null
-              ? 'AI lên lịch trình'
-              : _selectedDestination!.name,
-          style: AppTypography.headingMD.copyWith(color: AppColors.textPrimary),
-        ),
+        title: isPickingDest
+            ? null
+            : Text(
+                _selectedDestination!.name,
+                style: AppTypography.headingMD.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
         centerTitle: true,
       ),
       body: SafeArea(
-        child: _selectedDestination == null
-            ? _buildDestinationPicker()
-            : _buildWizard(),
+        top: !isPickingDest,
+        child: isPickingDest ? _buildDestinationPicker() : _buildWizard(),
       ),
     );
   }
@@ -128,131 +139,92 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     final destinationsAsync = ref.watch(allDestinationsProvider);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: AppSpacing.md),
-        // Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        // ── Gradient Hero Header ──
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(24, 80, 24, 32),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9), Color(0xFF4338CA)],
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(32),
+              bottomRight: Radius.circular(32),
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '✨ Bạn muốn đến đâu?',
-                style: AppTypography.headingLG.copyWith(
-                  color: AppColors.textPrimary,
+              const Text(
+                '✨ AI Lập Lịch Trình',
+                style: TextStyle(
+                  fontSize: 28, fontWeight: FontWeight.w800,
+                  color: Colors.white, letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: 6),
               Text(
-                'Chọn điểm đến và để AI tạo lịch trình hoàn hảo cho bạn',
-                style: AppTypography.bodySM.copyWith(
-                  color: AppColors.textSecondary,
+                'Chọn điểm đến và để AI tạo hành trình hoàn hảo',
+                style: TextStyle(fontSize: 15, color: Colors.white.withValues(alpha: 0.8)),
+              ),
+              const SizedBox(height: 20),
+              // ── Glassmorphic Search ──
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: 'Tìm điểm đến...',
+                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.white.withValues(alpha: 0.7)),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.close, size: 20, color: Colors.white.withValues(alpha: 0.7)),
+                            onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: TextField(
-            controller: _searchController,
-            onChanged: (v) => setState(() => _searchQuery = v.trim()),
-            decoration: InputDecoration(
-              hintText: 'Tìm điểm đến...',
-              hintStyle: AppTypography.bodyMD.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              prefixIcon: const Icon(
-                Icons.search,
-                color: AppColors.textSecondary,
-              ),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: BorderSide(color: Colors.grey.shade200),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.primary),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: 12,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Destination list
+        const SizedBox(height: 16),
+        // ── Destination List ──
         Expanded(
           child: destinationsAsync.when(
             data: (destinations) {
               final filtered = _filterDestinations(destinations);
               if (filtered.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('🔍', style: TextStyle(fontSize: 48)),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Không tìm thấy điểm đến',
-                        style: AppTypography.bodyMD.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                return const Center(child: Text('🔍 Không tìm thấy', style: TextStyle(fontSize: 16, color: Color(0xFF94A3B8))));
               }
               return ListView.separated(
-                padding: const EdgeInsets.only(
-                  left: AppSpacing.md,
-                  right: AppSpacing.md,
-                  top: AppSpacing.sm,
-                  bottom: 100,
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final d = filtered[index];
-                  return _DestinationTile(
-                    destination: d,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _selectedDestination = d);
-                    },
-                  );
+                  return _DestinationTile(destination: d, onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _selectedDestination = d);
+                  });
                 },
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Center(
-              child: Text(
-                'Không thể tải danh sách điểm đến',
-                style: AppTypography.bodyMD.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
+              child: Text('Không thể tải danh sách', style: AppTypography.bodyMD.copyWith(color: AppColors.textSecondary)),
             ),
           ),
         ),
@@ -377,40 +349,63 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
   Widget _buildStepIndicator() {
     const labels = ['Cơ bản', 'Sở thích', 'Nâng cao'];
+    const icons = [Icons.tune, Icons.favorite_border, Icons.settings_outlined];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Row(
-        children: List.generate(3, (i) {
-          final isActive = i == _step;
-          final isDone = i < _step;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                children: [
-                  Container(
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: isDone || isActive
-                          ? AppColors.primary
-                          : const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    labels[i],
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                      color: isActive
-                          ? AppColors.primary
-                          : const Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
+        children: List.generate(5, (i) {
+          // i=0,2,4 are dots; i=1,3 are connectors
+          if (i.isOdd) {
+            final lineIdx = i ~/ 2;
+            final isDone = lineIdx < _step;
+            return Expanded(
+              child: Container(
+                height: 3,
+                decoration: BoxDecoration(
+                  gradient: isDone
+                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)])
+                      : null,
+                  color: isDone ? null : const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
+            );
+          }
+          final stepIdx = i ~/ 2;
+          final isActive = stepIdx == _step;
+          final isDone = stepIdx < _step;
+          return Column(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: isActive ? 44 : 36,
+                height: isActive ? 44 : 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: (isActive || isDone)
+                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)])
+                      : null,
+                  color: (isActive || isDone) ? null : const Color(0xFFF1F5F9),
+                  boxShadow: isActive ? [
+                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 2),
+                  ] : null,
+                ),
+                child: Icon(
+                  isDone ? Icons.check_rounded : icons[stepIdx],
+                  color: (isActive || isDone) ? Colors.white : const Color(0xFF94A3B8),
+                  size: isActive ? 22 : 18,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                labels[stepIdx],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: isActive ? AppColors.primary : const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
           );
         }),
       ),
@@ -497,43 +492,50 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Quick-select chips
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        // Day quick-select — circular glow buttons
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [2, 3, 5, 7].map((d) {
             final isSelected = _days == d && !hasDates;
             return GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
-                setState(() {
-                  _days = d;
-                  _startDate = null;
-                  _endDate = null;
-                });
+                setState(() { _days = d; _startDate = null; _endDate = null; });
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
+                duration: const Duration(milliseconds: 200),
+                width: 56, height: 56,
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primary : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primary
-                        : Colors.grey.shade300,
-                  ),
+                  shape: BoxShape.circle,
+                  gradient: isSelected
+                      ? const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)])
+                      : null,
+                  color: isSelected ? null : Colors.white,
+                  border: isSelected ? null : Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: isSelected ? [
+                    BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 12, spreadRadius: 1),
+                  ] : [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+                  ],
                 ),
-                child: Text(
-                  '$d ngày',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$d',
+                      style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w700,
+                        color: isSelected ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'ngày',
+                      style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w500,
+                        color: isSelected ? Colors.white.withValues(alpha: 0.8) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -542,61 +544,59 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
         const SizedBox(height: AppSpacing.lg),
         _label('🚶 Nhịp độ'),
-        const SizedBox(height: 8),
-        Row(
-          children: TravelPace.values.map((p) {
-            final selected = _pace == p;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: ChoiceChip(
-                  label: Text(
-                    '${_paceEmoji(p)} ${p.label}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _pace = p),
-                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: selected
-                          ? AppColors.primary
-                          : const Color(0xFFE2E8F0),
+        const SizedBox(height: 10),
+        // Pace cards — gradient-bordered
+        ...TravelPace.values.map((p) {
+          final selected = _pace == p;
+          return GestureDetector(
+            onTap: () => setState(() => _pace = p),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? AppColors.primary : const Color(0xFFE2E8F0),
+                  width: selected ? 2 : 1,
+                ),
+                boxShadow: selected ? [
+                  BoxShadow(color: AppColors.primary.withValues(alpha: 0.1), blurRadius: 8),
+                ] : [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Text(_paceEmoji(p), style: const TextStyle(fontSize: 28)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.label,
+                          style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700,
+                            color: selected ? AppColors.primary : AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '~${p.locationsPerDay} điểm/ngày × $_days ngày = ~${p.locationsPerDay * _days} điểm',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  if (selected)
+                    const Icon(Icons.check_circle, color: AppColors.primary, size: 22),
+                ],
               ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.info_outline,
-                size: 16,
-                color: Color(0xFF94A3B8),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${_pace.label}: ~${_pace.locationsPerDay} điểm/ngày × $_days ngày = ~${_pace.locationsPerDay * _days} điểm',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        }),
         const SizedBox(height: AppSpacing.md),
       ],
     );
@@ -965,21 +965,36 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
   Widget _buildStep4Preview(AutoPlanState planState) {
     if (planState.isGenerating) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'AI đang lập kế hoạch...',
-              style: TextStyle(fontSize: 15, color: Color(0xFF64748B)),
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9), Color(0xFFA78BFA)],
+                ),
+                boxShadow: [
+                  BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 4),
+                ],
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(18),
+                child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
+              ),
             ),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 24),
+            const Text(
+              'AI đang lập kế hoạch...',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
               'Đang phân tích sở thích, tối ưu tuyến đường\nvà sắp xếp lịch trình cho bạn',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8), height: 1.5),
             ),
           ],
         ),
@@ -1063,80 +1078,55 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // AI Title & Description
-        if (result.tripTitle != null) ...[
-          Text(
-            result.tripTitle!,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (result.tripDescription != null)
-            Text(
-              result.tripDescription!,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF475569),
-                height: 1.4,
-              ),
-            ),
-          const SizedBox(height: 16),
-        ],
-
-        // Summary card
+        // ── Gradient Hero Banner ──
         Container(
-          padding: const EdgeInsets.all(14),
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.primary.withValues(alpha: 0.08),
-                AppColors.primary.withValues(alpha: 0.03),
-              ],
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6)),
+            ],
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.check_circle,
-                color: AppColors.success,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Đã tạo ${result.request.numberOfDays} ngày lịch trình!',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${result.totalStops} điểm dừng • ~${result.totalTravelTimeMin} phút di chuyển',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
+              if (result.tripTitle != null)
+                Text(
+                  result.tripTitle!,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, height: 1.3),
                 ),
+              if (result.tripDescription != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  result.tripDescription!,
+                  style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.85), height: 1.4),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              const SizedBox(height: 16),
+              // Stats row
+              Row(
+                children: [
+                  _heroBadge(Icons.calendar_today_rounded, '${result.request.numberOfDays} ngày'),
+                  const SizedBox(width: 12),
+                  _heroBadge(Icons.place_rounded, '${result.totalStops} điểm'),
+                  const SizedBox(width: 12),
+                  _heroBadge(Icons.directions_car_rounded, '~${result.totalTravelTimeMin}p'),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: 20),
 
-        // Day-by-day preview
+        // ── Day-by-day cards ──
         ...result.days.asMap().entries.map((entry) {
           final day = entry.value;
           return _buildDayPreview(day);
@@ -1147,107 +1137,334 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     );
   }
 
+  Widget _heroBadge(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+        ],
+      ),
+    );
+  }
+
+
   Widget _buildDayPreview(AutoPlanDay day) {
     if (day.stops.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 16),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
             'Ngày ${day.dayIndex + 1}: Ngày tự do 🌴',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
           ),
         ),
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Day header
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Day header — gradient pill
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)]),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Ngày ${day.dayIndex + 1}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 '${day.stops.length} điểm',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
               ),
               if (day.dayTheme != null) ...[
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     day.dayTheme!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF475569),
-                    ),
+                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 10),
-          // Stops
-          ...day.stops.asMap().entries.map((e) {
-            final stop = e.value;
-            final isLast = e.key == day.stops.length - 1;
-            return Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 6),
-              child: Row(
-                children: [
-                  _slotBadge(stop.timeSlotName),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      stop.location.name,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF334155),
+        ),
+
+        // Stop cards with travel bubbles between them
+        ...day.stops.asMap().entries.expand((e) {
+          final stop = e.value;
+          final isLast = e.key == day.stops.length - 1;
+          final widgets = <Widget>[];
+
+          // Travel info bubble (between cards)
+          if (stop.travelFromPrevious != null) {
+            widgets.add(
+              Padding(
+                padding: const EdgeInsets.only(left: 28, top: 2, bottom: 2),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 2, height: 16,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [AppColors.primary.withValues(alpha: 0.3), AppColors.primary.withValues(alpha: 0.08)],
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    stop.location.categoryEmoji,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.directions_car, size: 12, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${stop.travelFromPrevious!.formattedTravelTime} • ${stop.travelFromPrevious!.formattedDistance}',
+                            style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
-          }),
-        ],
+          }
+
+          // Stop card — expandable
+          final stopKey = '${day.dayIndex}_${e.key}';
+          final isExpanded = _expandedStops.contains(stopKey);
+          widgets.add(
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (isExpanded) {
+                    _expandedStops.remove(stopKey);
+                  } else {
+                    _expandedStops.add(stopKey);
+                    // Lazy generate tip if not available
+                    if (stop.aiDescription == null && !_lazyTips.containsKey(stopKey) && !_loadingTips.contains(stopKey)) {
+                      _generateLazyTip(stopKey, stop);
+                    }
+                  }
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                margin: EdgeInsets.only(bottom: isLast ? 20 : 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isExpanded ? const Color(0xFFFAF5FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isExpanded ? AppColors.primary.withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isExpanded
+                        ? AppColors.primary.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.04),
+                      blurRadius: isExpanded ? 16 : 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Main row
+                    Row(
+                      children: [
+                        Container(
+                          width: 52, height: 52,
+                          decoration: BoxDecoration(
+                            color: _slotColorBg(stop.timeSlotName),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Center(
+                            child: Text(stop.location.categoryEmoji, style: const TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                stop.location.name,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  _timeChip(stop.startTimeLabel),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${stop.durationMin} phút',
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedRotation(
+                          turns: isExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 250),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 22,
+                            color: isExpanded ? AppColors.primary : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Expanded content
+                    if (isExpanded) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary.withValues(alpha: 0.06), AppColors.primary.withValues(alpha: 0.02)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Text('Lời khuyên AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // AI description or loading
+                            if (stop.aiDescription != null)
+                              Text(
+                                stop.aiDescription!,
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.5),
+                              )
+                            else if (_lazyTips.containsKey(stopKey))
+                              Text(
+                                _lazyTips[stopKey]!,
+                                style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.5),
+                              )
+                            else if (_loadingTips.contains(stopKey))
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'AI đang tạo lời khuyên...',
+                                    style: TextStyle(fontSize: 12, color: AppColors.primary, fontStyle: FontStyle.italic),
+                                  ),
+                                ],
+                              )
+                            else
+                              const Text(
+                                'Chạm để nhận lời khuyên từ AI',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+                              ),
+                            // Reasons tags
+                            if (stop.reasons.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: stop.reasons.map((r) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(r, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF16A34A))),
+                                )).toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+
+          return widgets;
+        }),
+      ],
+    );
+  }
+
+  Widget _timeChip(String time) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary.withValues(alpha: 0.1), AppColors.primary.withValues(alpha: 0.05)],
+        ),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        time,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
       ),
     );
   }
+
+  Color _slotColorBg(String slot) {
+    switch (slot) {
+      case 'morning': return const Color(0xFFFFF7ED);
+      case 'noon': return const Color(0xFFFEF9C3);
+      case 'afternoon': return const Color(0xFFEFF6FF);
+      case 'evening': return const Color(0xFFF0F0FF);
+      default: return const Color(0xFFF8FAFC);
+    }
+  }
+
 
   // ─────────────────────────────────────────────────────────────────────
   // Navigation buttons
@@ -1261,36 +1478,40 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             child: OutlinedButton(
               onPressed: () => setState(() => _step--),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Quay lại'),
+              child: const Text('Quay lại', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
         if (_step > 0) const SizedBox(width: 12),
         Expanded(
           flex: 2,
-          child: ElevatedButton(
-            onPressed: () {
-              if (_step < 2) {
-                setState(() => _step++);
-              } else {
-                _onGenerate();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              elevation: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED), Color(0xFF6D28D9)]),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4)),
+              ],
             ),
-            child: Text(_step < 2 ? 'Tiếp tục' : '✨ Tạo lịch trình'),
+            child: ElevatedButton(
+              onPressed: () {
+                if (_step < 2) { setState(() => _step++); } else { _onGenerate(); }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(
+                _step < 2 ? 'Tiếp tục' : '✨ Tạo lịch trình',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
         ),
       ],
@@ -1309,28 +1530,30 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Sửa cài đặt'),
+              child: const Text('Sửa cài đặt', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             flex: 2,
-            child: ElevatedButton(
-              onPressed: _onGenerate,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
               ),
-              child: const Text('🔄 Thử lại'),
+              child: ElevatedButton(
+                onPressed: _onGenerate,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('🔄 Thử lại', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
             ),
           ),
         ],
@@ -1341,18 +1564,22 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
       children: [
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: planState.isEnriching ? null : _onApply,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              elevation: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF10B981), Color(0xFF059669)]),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: AppColors.success.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
             ),
-            child: const Text('✅ Áp dụng lịch trình'),
+            child: ElevatedButton(
+              onPressed: planState.isEnriching ? null : _onApply,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('✅ Áp dụng lịch trình', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -1364,9 +1591,7 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Sửa cài đặt'),
               ),
@@ -1378,9 +1603,7 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('🔄 Tạo lại'),
               ),
@@ -1486,6 +1709,59 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     }
   }
 
+  // ── Lazy AI tip generation ──
+  Future<void> _generateLazyTip(String stopKey, AutoPlanStop stop) async {
+    setState(() => _loadingTips.add(stopKey));
+    try {
+      final uri = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${AppConfig.geminiApiKey}',
+      );
+      final prompt = 'Bạn là hướng dẫn viên du lịch Việt Nam chuyên nghiệp. '
+          'Địa điểm: ${stop.location.name} (loại: ${stop.location.category}). '
+          'Thời gian ghé: ${stop.startTimeLabel} - ${stop.endTimeLabel} (${stop.durationMin} phút). '
+          'Viết 2-3 câu lời khuyên gọn bằng tiếng Việt cho du khách khi đến đây: '
+          'nên làm gì, mẹo hữu ích, lưu ý. Chỉ trả lời thuần text ngắn gọn.';
+
+      final payload = jsonEncode({
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt},
+            ],
+          },
+        ],
+        'generationConfig': {'maxOutputTokens': 150},
+      });
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: payload,
+      );
+
+      if (response.statusCode == 200 && mounted) {
+        final data = jsonDecode(response.body);
+        final text = data['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+        setState(() {
+          _lazyTips[stopKey] = text ?? 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}.';
+          _loadingTips.remove(stopKey);
+        });
+      } else if (mounted) {
+        setState(() {
+          _lazyTips[stopKey] = 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}. Đây là điểm ${stop.location.category} được đánh giá cao.';
+          _loadingTips.remove(stopKey);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _lazyTips[stopKey] = 'Hãy dành ${stop.durationMin} phút khám phá ${stop.location.name}. Đây là điểm ${stop.location.category} được đánh giá cao trong khu vực.';
+          _loadingTips.remove(stopKey);
+        });
+      }
+    }
+  }
+
   Widget _slotBadge(String slot) {
     Color bg;
     String label;
@@ -1538,58 +1814,68 @@ class _DestinationTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: Colors.grey.shade200),
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: AppColors.primary.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 56, height: 56,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primary.withValues(alpha: 0.12),
+                    AppColors.primary.withValues(alpha: 0.04),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Center(
                 child: Text(emoji, style: const TextStyle(fontSize: 28)),
               ),
             ),
-            const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     destination.name,
-                    style: AppTypography.headingMD.copyWith(
-                      color: AppColors.textPrimary,
+                    style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
                     ),
                   ),
                   if (destination.description.isNotEmpty)
                     Text(
                       destination.description,
-                      style: AppTypography.bodySM.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primary),
+            ),
           ],
         ),
       ),

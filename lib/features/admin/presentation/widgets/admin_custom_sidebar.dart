@@ -4,11 +4,13 @@ class AdminSidebarItem {
   final IconData icon;
   final IconData selectedIcon;
   final String label;
+  final int badgeCount;
 
   AdminSidebarItem({
     required this.icon,
     required this.selectedIcon,
     required this.label,
+    this.badgeCount = 0,
   });
 }
 
@@ -119,20 +121,44 @@ class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
                               size: 22,
                             ),
                             const SizedBox(width: 16),
-                            Text(
-                              item.label,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? const Color(0xFF6366F1)
-                                    : isHovered
-                                    ? Colors.grey[800]
-                                    : Colors.grey[600],
+                            Expanded(
+                              child: Text(
+                                item.label,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? const Color(0xFF6366F1)
+                                      : isHovered
+                                      ? Colors.grey[800]
+                                      : Colors.grey[600],
+                                ),
                               ),
                             ),
+                            // Badge count
+                            if (item.badgeCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  item.badgeCount > 99
+                                      ? '99+'
+                                      : item.badgeCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -142,7 +168,7 @@ class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
               },
             ),
           ),
-          // Footer area can go here
+          // Footer area
           Padding(
             padding: const EdgeInsets.all(24),
             child: Row(

@@ -22,6 +22,9 @@ class OnboardingService {
   /// Story 6.4: Implement Skip Onboarding
   static const String _keyOnboardingSkipped = 'onboarding_skipped';
 
+  /// SharedPreferences key for destination preferences
+  static const String _keyDestinationPreferences = 'destination_preferences';
+
   final SharedPreferences _prefs;
 
   /// Creates an OnboardingService with the given SharedPreferences instance.
@@ -78,6 +81,7 @@ class OnboardingService {
     await _prefs.remove(_keyOnboardingCompleted);
     await _prefs.remove(_keyMoodPreferences);
     await _prefs.remove(_keyOnboardingSkipped);
+    await _prefs.remove(_keyDestinationPreferences);
   }
 
   /// Save mood preferences locally.
@@ -107,6 +111,20 @@ class OnboardingService {
     }
 
     return result;
+  }
+
+  /// Save destination preferences locally.
+  ///
+  /// Stores selected destination IDs from onboarding for offline/anonymous access.
+  Future<void> saveDestinationPreferencesLocally(List<String> ids) async {
+    await _prefs.setStringList(_keyDestinationPreferences, ids);
+  }
+
+  /// Get locally saved destination preferences.
+  ///
+  /// Returns empty list if no preferences were saved.
+  List<String> getDestinationPreferencesLocally() {
+    return _prefs.getStringList(_keyDestinationPreferences) ?? [];
   }
 
   /// Get the list of mood preference names as strings.

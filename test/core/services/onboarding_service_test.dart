@@ -61,7 +61,7 @@ void main() {
       });
 
       test('saves multiple moods', () async {
-        final moods = {Mood.healing, Mood.adventure, Mood.party};
+        final moods = {Mood.healing, Mood.foodie, Mood.party};
         await service.saveMoodPreferencesLocally(moods);
 
         final result = service.getMoodPreferencesLocally();
@@ -134,7 +134,7 @@ void main() {
       });
 
       test('clears mood preferences', () async {
-        await service.saveMoodPreferencesLocally({Mood.adventure});
+        await service.saveMoodPreferencesLocally({Mood.foodie});
         expect(service.getMoodPreferencesLocally(), isNotEmpty);
 
         await service.resetOnboarding();
@@ -160,7 +160,7 @@ void main() {
         expect(service.getMoodPreferencesLocally(), isEmpty);
 
         // Select moods
-        final selectedMoods = {Mood.healing, Mood.adventure, Mood.foodie};
+        final selectedMoods = {Mood.healing, Mood.photography, Mood.foodie};
         await service.saveMoodPreferencesLocally(selectedMoods);
 
         // Mark complete

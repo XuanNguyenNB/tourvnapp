@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/admin_stats_provider.dart';
 import '../widgets/admin_custom_sidebar.dart';
 
 /// Admin layout screen that wraps admin pages with a sidebar.
 ///
-/// Uses ShellRoute instead of StatefulShellRoute to avoid GlobalKey
-/// duplication with the main app's StatefulShellRoute.
-class AdminLayoutScreen extends StatelessWidget {
+/// Uses ConsumerWidget to watch pending counts and show badges.
+class AdminLayoutScreen extends ConsumerWidget {
   final String currentPath;
   final Widget child;
 
@@ -45,7 +46,12 @@ class AdminLayoutScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch stats for badge counts
+    final statsAsync = ref.watch(adminStatsProvider);
+    final pendingComments = statsAsync.value?.pendingComments ?? 0;
+    final pendingDrafts = statsAsync.value?.pendingAiDrafts ?? 0;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       body: Row(
@@ -84,6 +90,7 @@ class AdminLayoutScreen extends StatelessWidget {
                 icon: Icons.comment_outlined,
                 selectedIcon: Icons.comment,
                 label: 'Bình luận',
+                badgeCount: pendingComments,
               ),
               AdminSidebarItem(
                 icon: Icons.upload_file_outlined,
@@ -94,6 +101,7 @@ class AdminLayoutScreen extends StatelessWidget {
                 icon: Icons.auto_awesome_outlined,
                 selectedIcon: Icons.auto_awesome,
                 label: 'AI Content',
+                badgeCount: pendingDrafts,
               ),
             ],
           ),

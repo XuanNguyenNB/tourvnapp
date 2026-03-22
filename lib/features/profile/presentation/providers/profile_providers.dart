@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tour_vn/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tour_vn/features/profile/domain/entities/user_stats.dart';
 import 'package:tour_vn/features/trip/presentation/providers/trips_provider.dart';
+import 'package:tour_vn/features/recommendation/data/repositories/user_event_repository.dart';
 
 /// TripMini - Simplified trip entity for profile display
 ///
@@ -42,8 +43,17 @@ final userStatsProvider = FutureProvider.autoDispose<UserStats>((ref) async {
     orElse: () => 0,
   );
 
-  // Still mocking saves and reviews for now
-  return UserStats(tripCount: tripCount, savesCount: 0, reviewsCount: 0);
+  // Get saves count from user interaction events
+  int savesCount = 0;
+  try {
+    final eventRepo = ref.read(userEventRepositoryProvider);
+    final interacted = await eventRepo.getInteractedLocationIds(user.uid);
+    savesCount = interacted.length;
+  } catch (_) {
+    // Firestore unavailable
+  }
+
+  return UserStats(tripCount: tripCount, savesCount: savesCount, reviewsCount: 0);
 });
 
 /// Provider for recent trips (last 5 trips for carousel)

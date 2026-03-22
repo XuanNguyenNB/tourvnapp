@@ -36,18 +36,18 @@ void main() {
 
       testWidgets('renders Vietnamese mood label correctly', (tester) async {
         await tester.pumpWidget(
-          createTestWidget(mood: Mood.adventure, isSelected: false),
+          createTestWidget(mood: Mood.foodie, isSelected: false),
         );
 
-        expect(find.text('Phiêu lưu'), findsOneWidget);
+        expect(find.text('Ẩm thực'), findsOneWidget);
       });
 
       testWidgets('renders mood subtitle correctly', (tester) async {
         await tester.pumpWidget(
-          createTestWidget(mood: Mood.adventure, isSelected: false),
+          createTestWidget(mood: Mood.foodie, isSelected: false),
         );
 
-        expect(find.text('Khám phá, mạo hiểm'), findsOneWidget);
+        expect(find.text('Ăn uống, đặc sản'), findsOneWidget);
       });
 
       testWidgets('renders all mood types correctly', (tester) async {
@@ -243,7 +243,7 @@ void main() {
 
       testWidgets('has 250ms animation duration for container', (tester) async {
         await tester.pumpWidget(
-          createTestWidget(mood: Mood.adventure, isSelected: false),
+          createTestWidget(mood: Mood.foodie, isSelected: false),
         );
 
         final animatedContainer = tester.widget<AnimatedContainer>(

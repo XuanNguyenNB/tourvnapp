@@ -41,12 +41,14 @@ class ProfileSettingsSection extends StatelessWidget {
                 },
               ),
               const Divider(height: 1, indent: 56),
-              // Account settings
               _SettingsTile(
                 icon: Icons.person_outline,
                 title: 'Thông tin tài khoản',
                 subtitle: 'Chỉnh sửa hồ sơ',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/profile/edit');
+                },
               ),
               const Divider(height: 1, indent: 56),
               // Notifications
@@ -73,12 +75,14 @@ class ProfileSettingsSection extends StatelessWidget {
                 onTap: () => _showComingSoon(context),
               ),
               const Divider(height: 1, indent: 56),
-              // About
               _SettingsTile(
                 icon: Icons.info_outline,
                 title: 'Về TourVN',
                 subtitle: 'Phiên bản 1.0.0',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/profile/about');
+                },
                 showChevron: false,
               ),
             ],

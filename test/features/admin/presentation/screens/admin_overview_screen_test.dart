@@ -11,6 +11,7 @@ void main() {
     totalLocations: 120,
     totalReviews: 300,
     pendingComments: 3,
+    pendingAiDrafts: 0,
     recentActivities: [
       {
         'id': 'rev-1',
@@ -69,6 +70,7 @@ void main() {
       totalLocations: 0,
       totalReviews: 0,
       pendingComments: 0,
+      pendingAiDrafts: 0,
       recentActivities: [],
     );
     await tester.pumpWidget(createWidgetUnderTest(emptyStats));

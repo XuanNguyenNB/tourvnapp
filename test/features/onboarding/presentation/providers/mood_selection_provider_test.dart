@@ -18,7 +18,7 @@ void main() {
       );
       expect(state.isSelected(Mood.healing), isTrue);
       expect(state.isSelected(Mood.foodie), isTrue);
-      expect(state.isSelected(Mood.adventure), isFalse);
+      expect(state.isSelected(Mood.photography), isFalse);
     });
 
     test('hasSelection returns true when moods are selected', () {
@@ -42,7 +42,7 @@ void main() {
       final state2 = MoodSelectionState(
         selectedMoods: {Mood.foodie, Mood.healing},
       );
-      final state3 = MoodSelectionState(selectedMoods: {Mood.adventure});
+      final state3 = MoodSelectionState(selectedMoods: {Mood.foodie});
 
       expect(state1, equals(state2));
       expect(state1, isNot(equals(state3)));
@@ -80,11 +80,11 @@ void main() {
       final notifier = container.read(moodSelectionProvider.notifier);
 
       // Add then remove
-      notifier.toggleMood(Mood.adventure);
-      notifier.toggleMood(Mood.adventure);
+      notifier.toggleMood(Mood.foodie);
+      notifier.toggleMood(Mood.foodie);
 
       final state = container.read(moodSelectionProvider);
-      expect(state.selectedMoods, isNot(contains(Mood.adventure)));
+      expect(state.selectedMoods, isNot(contains(Mood.foodie)));
       expect(state.selectionCount, equals(0));
     });
 
@@ -134,7 +134,7 @@ void main() {
     test('deselectMood does nothing if not selected', () {
       final notifier = container.read(moodSelectionProvider.notifier);
 
-      notifier.deselectMood(Mood.adventure); // Not selected
+      notifier.deselectMood(Mood.foodie); // Not selected
 
       final state = container.read(moodSelectionProvider);
       expect(state.selectedMoods, isEmpty);
@@ -160,7 +160,6 @@ void main() {
   group('Mood enum', () {
     test('all moods have correct labels', () {
       expect(Mood.healing.label, equals('Chữa lành'));
-      expect(Mood.adventure.label, equals('Phiêu lưu'));
       expect(Mood.foodie.label, equals('Ẩm thực'));
       expect(Mood.photography.label, equals('Chụp ảnh'));
       expect(Mood.party.label, equals('Vui chơi'));
@@ -168,19 +167,17 @@ void main() {
 
     test('all moods have emojis', () {
       expect(Mood.healing.emoji, equals('🧘'));
-      expect(Mood.adventure.emoji, equals('🏔️'));
       expect(Mood.foodie.emoji, equals('🍜'));
       expect(Mood.photography.emoji, equals('📸'));
       expect(Mood.party.emoji, equals('🎉'));
     });
 
-    test('Mood.all returns all 5 moods', () {
-      expect(Mood.all.length, equals(5));
+    test('Mood.all returns all 4 moods', () {
+      expect(Mood.all.length, equals(4));
       expect(
         Mood.all,
         containsAll([
           Mood.healing,
-          Mood.adventure,
           Mood.foodie,
           Mood.photography,
           Mood.party,
@@ -190,7 +187,6 @@ void main() {
 
     test('fromId returns correct mood', () {
       expect(Mood.fromId('healing'), equals(Mood.healing));
-      expect(Mood.fromId('adventure'), equals(Mood.adventure));
       expect(Mood.fromId('foodie'), equals(Mood.foodie));
       expect(Mood.fromId('photography'), equals(Mood.photography));
       expect(Mood.fromId('party'), equals(Mood.party));
@@ -203,7 +199,7 @@ void main() {
 
     test('id returns lowercase enum name', () {
       expect(Mood.healing.id, equals('healing'));
-      expect(Mood.adventure.id, equals('adventure'));
+      expect(Mood.foodie.id, equals('foodie'));
     });
   });
 }

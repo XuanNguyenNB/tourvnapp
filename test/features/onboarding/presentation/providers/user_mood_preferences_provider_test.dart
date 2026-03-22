@@ -62,7 +62,7 @@ void main() {
 
       when(
         () => mockOnboardingService.getMoodPreferencesLocally(),
-      ).thenReturn({Mood.adventure, Mood.foodie});
+      ).thenReturn({Mood.photography, Mood.foodie});
 
       final container = ProviderContainer(
         overrides: [

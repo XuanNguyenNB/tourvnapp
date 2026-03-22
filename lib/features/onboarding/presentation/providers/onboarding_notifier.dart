@@ -2,29 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tour_vn/core/services/onboarding_service.dart';
 import 'package:tour_vn/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tour_vn/features/onboarding/domain/entities/mood.dart';
+import 'package:tour_vn/features/onboarding/domain/mood_category_mapping.dart';
 import 'package:tour_vn/features/recommendation/data/repositories/user_profile_repository.dart';
 import 'package:tour_vn/features/recommendation/domain/entities/user_profile.dart';
 
-/// Mood → Category/Tags mapping for recommendation cold-start.
-///
-/// When a user selects moods during onboarding, we convert them
-/// into `preferredCategoryIds` and `preferredTags` to seed
-/// the recommendation engine's UserProfile.
-const Map<Mood, List<String>> _moodToCategories = {
-  Mood.healing: ['places', 'stay'],
-  Mood.adventure: ['places'],
-  Mood.foodie: ['food'],
-  Mood.photography: ['places'],
-  Mood.party: ['places', 'food'],
-};
-
-const Map<Mood, List<String>> _moodToTags = {
-  Mood.healing: ['chill', 'resort', 'hidden-gem'],
-  Mood.adventure: ['adventure', 'trekking', 'outdoor'],
-  Mood.foodie: ['local-favorite', 'street-food'],
-  Mood.photography: ['instagram-worthy', 'check-in'],
-  Mood.party: ['nightlife', 'vui chơi'],
-};
 
 /// State for the onboarding completion process.
 ///
@@ -95,6 +76,7 @@ class OnboardingNotifier extends Notifier<OnboardingCompletionState> {
 
       // Always save locally first (for quick access on next launch)
       await onboardingService.saveMoodPreferencesLocally(moods);
+      await onboardingService.saveDestinationPreferencesLocally(selectedDestinationIds);
       await onboardingService.markOnboardingCompleted();
 
       // If user is authenticated (not anonymous), also save to Firestore
@@ -141,18 +123,12 @@ class OnboardingNotifier extends Notifier<OnboardingCompletionState> {
     Set<Mood> moods, {
     List<String> destinationIds = const [],
   }) async {
-    final categories = <String>{};
-    final tags = <String>{};
-
-    for (final mood in moods) {
-      categories.addAll(_moodToCategories[mood] ?? []);
-      tags.addAll(_moodToTags[mood] ?? []);
-    }
+    final (categoryList, tagList) = MoodCategoryMapping.resolve(moods);
 
     final profile = UserProfile(
       userId: userId,
-      preferredCategoryIds: categories.toList(),
-      preferredTags: tags.toList(),
+      preferredCategoryIds: categoryList,
+      preferredTags: tagList,
       preferredDestinationIds: destinationIds,
       updatedAt: DateTime.now(),
     );

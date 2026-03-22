@@ -7,6 +7,7 @@ class AdminStats {
   final int totalLocations;
   final int totalReviews;
   final int pendingComments;
+  final int pendingAiDrafts;
   final List<Map<String, dynamic>> recentActivities;
 
   const AdminStats({
@@ -15,6 +16,7 @@ class AdminStats {
     required this.totalLocations,
     required this.totalReviews,
     required this.pendingComments,
+    required this.pendingAiDrafts,
     required this.recentActivities,
   });
 }
@@ -23,7 +25,6 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
   final firestore = FirebaseFirestore.instance;
 
   // Use count() aggregation instead of fetching full documents
-  // This reduces bandwidth significantly for large collections.
   final usersCount = await firestore.collection('users').count().get();
   final destinationsCount = await firestore
       .collection('destinations')
@@ -32,8 +33,7 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
   final locationsCount = await firestore.collection('locations').count().get();
   final reviewsCount = await firestore.collection('reviews').count().get();
 
-  // Count flagged (pending) comments by iterating reviews
-  // Avoids collectionGroup query which requires special indexes
+  // Count flagged (pending) comments
   final reviewsForComments = await firestore.collection('reviews').get();
   int pendingCount = 0;
   final commentFutures = reviewsForComments.docs.map((reviewDoc) async {
@@ -47,7 +47,27 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
   });
   await Future.wait(commentFutures);
 
-  // Get recent reviews (latest 5) — still need full docs for title
+  // Count AI drafts across all content types
+  final draftDestinations = await firestore
+      .collection('destinations')
+      .where('status', isEqualTo: 'draft_ai')
+      .count()
+      .get();
+  final draftLocations = await firestore
+      .collection('locations')
+      .where('status', isEqualTo: 'draft_ai')
+      .count()
+      .get();
+  final draftReviews = await firestore
+      .collection('reviews')
+      .where('status', isEqualTo: 'draft_ai')
+      .count()
+      .get();
+  final totalDrafts = (draftDestinations.count ?? 0) +
+      (draftLocations.count ?? 0) +
+      (draftReviews.count ?? 0);
+
+  // Get recent reviews (latest 5)
   final recentReviewsSnapshot = await firestore
       .collection('reviews')
       .orderBy('createdAt', descending: true)
@@ -70,6 +90,8 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
     totalLocations: locationsCount.count ?? 0,
     totalReviews: reviewsCount.count ?? 0,
     pendingComments: pendingCount,
+    pendingAiDrafts: totalDrafts,
     recentActivities: recentActivities,
   );
 });
+

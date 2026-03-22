@@ -45,7 +45,7 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 450),
     );
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
@@ -63,7 +63,7 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
     super.dispose();
   }
 
-  void _goToMoodSelection() {
+  void _goToLocationPermission() {
     HapticFeedback.mediumImpact();
     _pageController.animateToPage(
       1,
@@ -118,16 +118,11 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
                 physics: const NeverScrollableScrollPhysics(),
                 onPageChanged: (page) {
                   setState(() => _currentPage = page);
-                  // Reset animation for new pages
-                  if (page >= 1) {
-                    _animController.reset();
-                    _animController.forward();
-                  }
                 },
                 children: [
                   _buildWelcomePage(),
-                  _buildSelectionPage(),
                   _buildLocationPermissionPage(),
+                  _buildSelectionPage(),
                 ],
               ),
 
@@ -216,7 +211,7 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
                 // CTA Button
                 GradientButton(
                   text: 'Bắt đầu khám phá',
-                  onPressed: _goToMoodSelection,
+                  onPressed: _goToLocationPermission,
                   icon: const Icon(
                     Icons.arrow_forward_rounded,
                     color: Colors.white,
@@ -317,12 +312,12 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
                   children: [
                     const SizedBox(height: 16),
 
-                    // Back button
+                    // Back button → go back to GPS permission (page 1)
                     GestureDetector(
                       onTap: () {
                         HapticFeedback.lightImpact();
                         _pageController.animateToPage(
-                          0,
+                          1,
                           duration: const Duration(milliseconds: 400),
                           curve: Curves.easeOutCubic,
                         );
@@ -357,7 +352,7 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Chọn sở thích và nơi bạn muốn đến 🎯',
+                      'Chọn sở thích và nơi bạn muốn đến',
                       style: GoogleFonts.beVietnamPro(
                         fontSize: 14,
                         color: Colors.white.withValues(alpha: 0.6),
@@ -536,6 +531,8 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
 
   Widget _buildDestinationGrid() {
     final destinationsAsync = ref.watch(allDestinationsProvider);
+    final locationState = ref.watch(userLocationProvider);
+    final userPos = locationState.position;
 
     return destinationsAsync.when(
       loading: () => const Center(
@@ -566,6 +563,43 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
               .toList();
         }
 
+        // Sort by GPS proximity if user position available
+        if (userPos != null) {
+          final destRepo = ref.read(destinationRepositoryProvider);
+          return FutureBuilder(
+            future: destRepo.getAllLocations(),
+            builder: (context, snapshot) {
+              var sortedList = filtered;
+              Map<String, double> distMap = {};
+              if (snapshot.hasData) {
+                final allLocations = snapshot.data!;
+                // Build map: destinationId → min distance
+                for (final loc in allLocations) {
+                  if (loc.latitude == null || loc.longitude == null) continue;
+                  final dist = Geolocator.distanceBetween(
+                    userPos.latitude,
+                    userPos.longitude,
+                    loc.latitude!,
+                    loc.longitude!,
+                  );
+                  final current = distMap[loc.destinationId];
+                  if (current == null || dist < current) {
+                    distMap[loc.destinationId] = dist;
+                  }
+                }
+                // Sort: destinations with closer locations first
+                sortedList = List.from(filtered)
+                  ..sort((a, b) {
+                    final da = distMap[a.id] ?? double.infinity;
+                    final db = distMap[b.id] ?? double.infinity;
+                    return da.compareTo(db);
+                  });
+              }
+              return _buildDestinationGridView(sortedList, distMap: distMap);
+            },
+          );
+        }
+
         if (filtered.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(24),
@@ -580,28 +614,49 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
           );
         }
 
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.15,
+        return _buildDestinationGridView(filtered);
+      },
+    );
+  }
+
+  Widget _buildDestinationGridView(List<dynamic> destinations, {Map<String, double>? distMap}) {
+    if (destinations.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'Không tìm thấy điểm đến nào',
+          style: GoogleFonts.beVietnamPro(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: 14,
           ),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) {
-            final dest = filtered[index];
-            return _DestinationCard(
-              destination: dest,
-              isSelected: ref
-                  .watch(destinationSelectionProvider)
-                  .isSelected(dest.id),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                ref.read(destinationSelectionProvider.notifier).toggle(dest.id);
-              },
-            );
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.15,
+      ),
+      itemCount: destinations.length,
+      itemBuilder: (context, index) {
+        final dest = destinations[index];
+        return _DestinationCard(
+          destination: dest,
+          distanceKm: distMap != null && distMap.containsKey(dest.id)
+              ? distMap[dest.id]! / 1000.0
+              : null,
+          isSelected: ref
+              .watch(destinationSelectionProvider)
+              .isSelected(dest.id),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            ref.read(destinationSelectionProvider.notifier).toggle(dest.id);
           },
         );
       },
@@ -635,9 +690,9 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
         ),
         const SizedBox(height: AppSpacing.sm),
         TextButton(
-          onPressed: isLoading ? null : _handleSkip,
+          onPressed: isLoading ? null : () => context.push('/login'),
           child: Text(
-            'Để sau, tôi muốn xem trước',
+            'Đã có tài khoản? Đăng nhập',
             style: AppTypography.bodySM.copyWith(
               color: Colors.white.withValues(alpha: 0.5),
             ),
@@ -697,14 +752,14 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
                 children: [
                   const SizedBox(height: 16),
 
-                  // Back button
+                  // Back button → go back to Welcome (page 0)
                   Align(
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
                       onTap: () {
                         HapticFeedback.lightImpact();
                         _pageController.animateToPage(
-                          1,
+                          0,
                           duration: const Duration(milliseconds: 400),
                           curve: Curves.easeOutCubic,
                         );
@@ -905,54 +960,61 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
 
   // ─── HANDLERS ──────────────────────────────────────────────────────
 
-  /// From page 2 → navigate to page 3 (GPS permission page).
+  /// From Selection page (page 2) → complete onboarding and go home.
   void _handleContinue(
     MoodSelectionState moodState,
     DestinationSelectionState destState,
   ) {
     HapticFeedback.mediumImpact();
-    _pageController.animateToPage(
-      2,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutCubic,
-    );
+    _completeAndNavigate();
   }
 
-  /// From page 3 → complete onboarding + request GPS.
+  /// From GPS permission page (page 1) → request GPS.
+  /// Both granted and denied → go to page 2 (selection).
+  /// If granted, pre-loads position so destinations can be sorted by proximity.
   Future<void> _handleFinishWithGPS() async {
     HapticFeedback.mediumImpact();
 
-    // Request GPS first (shows native dialog)
-    bool granted = false;
+    // Request GPS (shows native dialog)
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      granted =
+      final granted =
           permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always;
+
+      // If granted, pre-load position so Selection page can sort by proximity
+      if (granted) {
+        try {
+          await ref.read(userLocationProvider.notifier).loadPosition();
+        } catch (_) {
+          // Non-critical
+        }
+      }
     } catch (_) {
       // Non-critical
     }
 
-    // If granted, pre-load position so home screen has distances immediately
-    if (granted) {
-      try {
-        await ref.read(userLocationProvider.notifier).loadPosition();
-      } catch (_) {
-        // Non-critical
-      }
-    }
+    if (!mounted) return;
 
-    // Then complete onboarding
-    await _completeAndNavigate();
+    // Always go to selection page (page 2)
+    _pageController.animateToPage(
+      2,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
   }
 
-  /// From page 3 → skip GPS, just complete.
+  /// From GPS permission page → skip GPS, go to selection (page 2).
   Future<void> _handleFinishWithoutGPS() async {
     HapticFeedback.lightImpact();
-    await _completeAndNavigate();
+    _pageController.animateToPage(
+      2,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   /// Save profile + navigate to home.
@@ -981,29 +1043,6 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
       );
     }
   }
-
-  Future<void> _handleSkip() async {
-    HapticFeedback.lightImpact();
-
-    final success = await ref
-        .read(onboardingNotifierProvider.notifier)
-        .skipOnboarding();
-
-    if (!mounted) return;
-
-    if (success) {
-      // Invalidate provider cache để router redirect không loop
-      ref.invalidate(shouldShowOnboardingProvider);
-      context.go('/');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã xảy ra lỗi. Vui lòng thử lại.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 }
 
 // ─── DESTINATION CARD ──────────────────────────────────────────────
@@ -1012,11 +1051,13 @@ class _DestinationCard extends StatelessWidget {
   final dynamic destination;
   final bool isSelected;
   final VoidCallback onTap;
+  final double? distanceKm;
 
   const _DestinationCard({
     required this.destination,
     required this.isSelected,
     required this.onTap,
+    this.distanceKm,
   });
 
   @override
@@ -1106,21 +1147,48 @@ class _DestinationCard extends StatelessWidget {
                   ),
                 ),
 
-              // Name only
+              // Name + distance
               Positioned(
                 left: 10,
                 right: 10,
                 bottom: 10,
-                child: Text(
-                  destination.name,
-                  style: GoogleFonts.beVietnamPro(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      destination.name,
+                      style: GoogleFonts.beVietnamPro(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (distanceKm != null) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF06B6D4).withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                              '${distanceKm!.toStringAsFixed(0)} km',
+                              style: GoogleFonts.beVietnamPro(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF06B6D4),
+                              ),
+                            ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],

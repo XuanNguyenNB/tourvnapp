@@ -188,7 +188,7 @@ void main() {
           tester.element(find.byType(MoodSelectionScreen)),
         );
         expect(
-          container.read(moodSelectionProvider).isSelected(Mood.adventure),
+          container.read(moodSelectionProvider).isSelected(Mood.foodie),
           isTrue,
         );
 
@@ -197,7 +197,7 @@ void main() {
         await tester.pump();
 
         expect(
-          container.read(moodSelectionProvider).isSelected(Mood.adventure),
+          container.read(moodSelectionProvider).isSelected(Mood.foodie),
           isFalse,
         );
       });

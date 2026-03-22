@@ -213,46 +213,183 @@ Chọn tags phù hợp (2-4 tags). Chỉ trả về JSON, không thêm giải th
 
   // ── Review (Article) Generation ─────────────────────────
 
+  /// Article styles supported by the AI writer.
+  static const List<String> articleStyles = [
+    'review',
+    'guide',
+    'top-list',
+    'tips',
+  ];
+
+  /// Generate a single review/article with context-aware prompting.
+  ///
+  /// [existingLocations] provides real location data from the DB so the AI
+  /// writes about actual places and fills `relatedLocationIds` correctly.
+  /// [articleStyle] controls the writing format and length.
   Future<Map<String, dynamic>> generateReview({
     required String prompt,
     String? destinationId,
     String? destinationName,
+    List<Map<String, dynamic>>? existingLocations,
+    String articleStyle = 'review',
   }) async {
     final destContext = destinationId != null
         ? '\nĐiểm đến: $destinationName (ID: $destinationId)'
         : '';
 
-    final systemPrompt =
-        '''
-Bạn là một travel blogger Việt Nam viết bài du lịch hấp dẫn. Tạo một bài viết dựa trên yêu cầu.$destContext
+    // Build location context block
+    final locationContext = _buildLocationContext(existingLocations);
+
+    // Style-specific instructions
+    final styleInstructions = _getStyleInstructions(articleStyle);
+
+    final systemPrompt = '''
+Bạn là một travel blogger Việt Nam chuyên nghiệp, viết bài du lịch hấp dẫn và chi tiết.$destContext
+$locationContext
+$styleInstructions
+
 Trả về JSON thuần túy (KHÔNG có markdown code block), với các trường:
 {
   "id": "slug-tu-tieu-de",
   "heroImage": "",
-  "title": "Tiêu đề hấp dẫn tiếng Việt",
+  "title": "Tiêu đề hấp dẫn tiếng Việt, thu hút click",
   "authorId": "ai-writer",
   "authorName": "AI Travel Writer",
   "authorAvatar": "",
-  "fullText": "Nội dung bài viết 300-600 từ, viết theo dạng review/blog, sử dụng Markdown",
+  "fullText": "Nội dung bài viết dạng Markdown, có ## heading cho từng phần, chi tiết và sinh động",
   "createdAt": "${DateTime.now().toIso8601String()}",
   "likeCount": 0,
   "commentCount": 0,
   "saveCount": 0,
-  "relatedLocationIds": [],
+  "relatedLocationIds": ["id-thuc-te-1", "id-thuc-te-2"],
   "destinationId": ${destinationId != null ? '"$destinationId"' : 'null'},
   "destinationName": ${destinationName != null ? '"$destinationName"' : 'null'},
-  "category": "places",
+  "category": "food hoặc places hoặc stay (tự suy từ nội dung chính)",
   "slug": "slug-tu-tieu-de",
   "status": "draft_ai"
 }
-Chỉ trả về JSON, không thêm giải thích hay markdown.
+
+QUY TẮC QUAN TRỌNG:
+- "relatedLocationIds" CHỈ chứa các ID có trong danh sách địa điểm ở trên (nếu có). Nếu không có danh sách, để mảng rỗng.
+- "fullText" phải dùng Markdown: ## cho heading, **bold** cho tên địa điểm, có ít nhất 3 phần/heading.
+- Viết tự nhiên, có trải nghiệm cá nhân, mẹo thực tế, giá cả tham khảo.
+- Chỉ trả về JSON, không thêm giải thích hay markdown block.
 ''';
 
     final resultText = await _callGeminiApi(
-      'Viết bài về: $prompt',
+      'Viết bài $articleStyle về: $prompt',
       systemPrompt,
     );
     return _parseJson(resultText);
+  }
+
+  /// Generate multiple reviews/articles for a destination in one call.
+  ///
+  /// Each article will have a different style and focus on different locations.
+  Future<List<Map<String, dynamic>>> generateMultipleReviews({
+    required String destinationName,
+    required String destinationId,
+    required List<Map<String, dynamic>> existingLocations,
+    int count = 3,
+  }) async {
+    // Build location context
+    final locationContext = _buildLocationContext(existingLocations);
+
+    final systemPrompt = '''
+Bạn là team travel blogger Việt Nam chuyên nghiệp. Tạo $count bài viết KHÁC NHAU về "$destinationName".
+
+$locationContext
+
+Mỗi bài PHẢI khác nhau về:
+1. Style (review trải nghiệm / hướng dẫn chi tiết / top list / mẹo du lịch)
+2. Nhóm địa điểm (mỗi bài tập trung nhóm locations khác nhau)
+3. Góc nhìn (ẩm thực / check-in / gia đình / giới trẻ / budget...)
+
+Trả về JSON thuần túy là một MẢNG gồm $count objects:
+[
+  {
+    "id": "slug-tu-tieu-de",
+    "heroImage": "",
+    "title": "Tiêu đề hấp dẫn tiếng Việt",
+    "authorId": "ai-writer",
+    "authorName": "AI Travel Writer",
+    "authorAvatar": "",
+    "fullText": "Nội dung Markdown 800-1200 từ, có ## headings, **bold** tên địa điểm",
+    "createdAt": "${DateTime.now().toIso8601String()}",
+    "likeCount": 0,
+    "commentCount": 0,
+    "saveCount": 0,
+    "relatedLocationIds": ["id-thuc-te-1", "id-thuc-te-2"],
+    "destinationId": "$destinationId",
+    "destinationName": "$destinationName",
+    "category": "food|places|stay",
+    "slug": "slug-tu-tieu-de",
+    "status": "draft_ai"
+  }
+]
+
+QUY TẮC:
+- "relatedLocationIds" CHỈ chứa IDs từ danh sách địa điểm trên. Mỗi bài dùng 2-5 locations.
+- Mỗi bài có ÍT NHẤT 3 phần ## heading trong fullText.
+- Chỉ trả về JSON mảng, không thêm giải thích.
+''';
+
+    final resultText = await _callGeminiApi(
+      'Tạo $count bài viết du lịch đa dạng cho $destinationName',
+      systemPrompt,
+    );
+    return _parseJsonList(resultText);
+  }
+
+  /// Build location context string from existing DB locations.
+  String _buildLocationContext(List<Map<String, dynamic>>? locations) {
+    if (locations == null || locations.isEmpty) {
+      return 'Không có dữ liệu địa điểm sẵn có. Hãy viết dựa trên kiến thức chung.';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln(
+      'Dưới đây là ${locations.length} địa điểm THỰC TẾ đang có trong hệ thống. '
+      'Hãy viết bài DỰA TRÊN các địa điểm này:',
+    );
+    for (final loc in locations) {
+      buffer.writeln(
+        '- ID: "${loc['id']}" | ${loc['name']} | ${loc['category']} | '
+        '${(loc['tags'] as List?)?.join(', ') ?? ''} | ★${loc['rating'] ?? 'N/A'} '
+        '| ${loc['address'] ?? ''}',
+      );
+    }
+    return buffer.toString();
+  }
+
+  /// Get style-specific writing instructions.
+  String _getStyleInstructions(String style) {
+    switch (style) {
+      case 'guide':
+        return '''
+Style: HƯỚNG DẪN DU LỊCH CHI TIẾT (1000-1500 từ)
+- Cấu trúc: ## Tổng quan → ## Di chuyển → ## Các điểm phải đến → ## Ẩm thực → ## Mẹo hữu ích
+- Thông tin thực tế: giá vé, giờ mở cửa, cách đi lại
+- Gợi ý lịch trình theo ngày nếu phù hợp''';
+      case 'top-list':
+        return '''
+Style: TOP LIST (600-1000 từ)
+- Cấu trúc: ## Giới thiệu → ## 1. Tên địa điểm → ## 2. ... → ## Kết luận
+- Mỗi mục: mô tả ngắn gọn, điểm nổi bật, giá tham khảo
+- Đánh số rõ ràng, dễ đọc lướt''';
+      case 'tips':
+        return '''
+Style: MẸO DU LỊCH THỰC TẾ (500-800 từ)
+- Cấu trúc: ## Chuẩn bị → ## Tiết kiệm chi phí → ## Trải nghiệm local → ## Lưu ý quan trọng
+- Mẹo thực tế, cụ thể, có thể áp dụng ngay
+- Bao gồm mức giá tham khảo, thời điểm tốt nhất''';
+      default: // 'review'
+        return '''
+Style: REVIEW TRẢI NGHIỆM (800-1200 từ)
+- Cấu trúc: ## Ấn tượng đầu tiên → ## Trải nghiệm chi tiết → ## Ẩm thực → ## Đánh giá tổng thể
+- Viết như người đã đến: cảm xúc, chi tiết cá nhân, so sánh
+- Có rating/đánh giá riêng cho từng khía cạnh''';
+    }
   }
 
   // ── JSON Parsing Helpers ────────────────────────────────

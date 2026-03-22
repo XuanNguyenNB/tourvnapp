@@ -28,6 +28,8 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
   String? _selectedDestinationId;
   String? _selectedDestinationName;
   int _locationCount = 5;
+  String _articleStyle = 'review'; // review, guide, top-list, tips
+  int _reviewCount = 1; // 1 = single, 3/5 = batch
 
   @override
   void initState() {
@@ -214,6 +216,53 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
             const SizedBox(height: 20),
           ],
 
+          // Article style selector (for reviews)
+          if (_generateType == 'review') ...[
+            Text(
+              'Loại bài viết',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                _styleChip('📝 Review', 'review'),
+                _styleChip('📖 Guide', 'guide'),
+                _styleChip('🏆 Top List', 'top-list'),
+                _styleChip('💡 Tips', 'tips'),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Count selector for batch
+            Text(
+              'Số lượng bài',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [1, 3, 5].map((n) {
+                final selected = _reviewCount == n;
+                return ChoiceChip(
+                  label: Text(n == 1 ? '1 bài' : '$n bài'),
+                  selected: selected,
+                  onSelected: (_) => setState(() => _reviewCount = n),
+                  selectedColor: const Color(
+                    0xFF6366F1,
+                  ).withValues(alpha: 0.15),
+                  checkmarkColor: const Color(0xFF6366F1),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+          ],
+
           // Prompt
           Text(
             'Mô tả yêu cầu',
@@ -349,6 +398,23 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
     );
   }
 
+  Widget _styleChip(String label, String value) {
+    final selected = _articleStyle == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _articleStyle = value),
+      selectedColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
+      checkmarkColor: const Color(0xFF6366F1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? const Color(0xFF6366F1) : Colors.grey.shade300,
+        ),
+      ),
+    );
+  }
+
   Widget _buildDestinationSelector() {
     final destsAsync = ref.watch(adminDestinationProvider);
 
@@ -442,11 +508,28 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
         );
         break;
       case 'review':
-        notifier.generateReview(
-          prompt: prompt,
-          destinationId: _selectedDestinationId,
-          destinationName: _selectedDestinationName,
-        );
+        if (_reviewCount > 1) {
+          // Batch generate
+          if (_selectedDestinationId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Vui lòng chọn điểm đến để tạo nhiều bài')),
+            );
+            return;
+          }
+          notifier.generateMultipleReviews(
+            destinationId: _selectedDestinationId!,
+            destinationName: _selectedDestinationName!,
+            count: _reviewCount,
+          );
+        } else {
+          // Single generate
+          notifier.generateReview(
+            prompt: prompt,
+            destinationId: _selectedDestinationId,
+            destinationName: _selectedDestinationName,
+            articleStyle: _articleStyle,
+          );
+        }
         break;
     }
   }
@@ -489,12 +572,13 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
             provider: pendingReviewsProvider,
             itemBuilder: (review) => _PendingCard(
               title: review.title,
-              subtitle: review.fullText.length > 100
-                  ? '${review.fullText.substring(0, 100)}...'
+              subtitle: review.fullText.length > 200
+                  ? '${review.fullText.substring(0, 200)}...'
                   : review.fullText,
               imageUrl: review.heroImage,
               onApprove: () => _approveReview(review),
               onReject: () => _rejectReview(review.id),
+              onTap: () => _showPreviewDialog(review.title, review.fullText),
             ),
           ),
         ],
@@ -512,9 +596,30 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        asyncData.when(
+          data: (items) {
+            return Row(
+              children: [
+                Text(
+                  '$title (${items.length})',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (items.length > 1)
+                  TextButton.icon(
+                    onPressed: () => _bulkApproveAll(provider),
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Duyệt tất cả'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.green[700],
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                  ),
+              ],
+            );
+          },
+          loading: () => Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          error: (_, __) => Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 12),
         asyncData.when(
@@ -541,6 +646,79 @@ class _AiContentHubScreenState extends ConsumerState<AiContentHubScreen>
           error: (e, _) => Text('Lỗi: $e'),
         ),
       ],
+    );
+  }
+
+  void _bulkApproveAll<T>(FutureProvider<List<T>> provider) async {
+    final items = ref.read(provider).value ?? [];
+    if (items.isEmpty) return;
+
+    final notifier = ref.read(aiContentNotifierProvider.notifier);
+    int count = 0;
+
+    for (final item in items) {
+      if (item is Destination) {
+        await notifier.approveDestination(item);
+        count++;
+      } else if (item is Location) {
+        await notifier.approveLocation(item);
+        count++;
+      } else if (item is Review) {
+        await notifier.approveReview(item);
+        count++;
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã duyệt $count mục')),
+      );
+    }
+  }
+
+  void _showPreviewDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 12, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: SelectableText(
+                    content,
+                    style: const TextStyle(fontSize: 14, height: 1.6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -607,6 +785,7 @@ class _PendingCard extends StatelessWidget {
   final String imageUrl;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+  final VoidCallback? onTap;
 
   const _PendingCard({
     required this.title,
@@ -614,11 +793,14 @@ class _PendingCard extends StatelessWidget {
     required this.imageUrl,
     required this.onApprove,
     required this.onReject,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -724,6 +906,7 @@ class _PendingCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

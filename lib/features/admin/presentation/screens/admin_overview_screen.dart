@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/admin_stats_provider.dart';
 
 class AdminOverviewScreen extends ConsumerWidget {
@@ -15,7 +16,7 @@ class AdminOverviewScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        toolbarHeight: 0, // Ẩn appbar để nội dung tự đẩy lên trên
+        toolbarHeight: 0,
       ),
       body: statsAsync.when(
         data: (stats) => _buildDashboard(context, stats, ref),
@@ -89,52 +90,54 @@ class AdminOverviewScreen extends ConsumerWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final crossAxisCount = constraints.maxWidth > 1000
-                  ? 4
+                  ? 3
                   : constraints.maxWidth > 650
                   ? 2
                   : 1;
               return GridView.count(
                 crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 24,
-                mainAxisSpacing: 24,
-                childAspectRatio: crossAxisCount == 1 ? 2.5 : 1.3,
+                crossAxisSpacing: 20,
+                mainAxisSpacing: 20,
+                childAspectRatio: crossAxisCount == 1 ? 2.8 : 1.8,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _StatCard(
-                    title: 'Tổng số người dùng',
+                    title: 'Người dùng',
                     value: stats.totalUsers.toString(),
                     icon: Icons.people_outline,
                     color: const Color(0xFF6366F1),
-                    trend: '+12%',
                   ),
                   _StatCard(
-                    title: 'Tổng số điểm đến',
+                    title: 'Điểm đến',
                     value: stats.totalDestinations.toString(),
                     icon: Icons.location_city_outlined,
                     color: const Color(0xFF10B981),
-                    trend: '+5%',
                   ),
                   _StatCard(
-                    title: 'Tổng số địa điểm',
+                    title: 'Địa điểm',
                     value: stats.totalLocations.toString(),
                     icon: Icons.place_outlined,
                     color: const Color(0xFFF59E0B),
-                    trend: '+24%',
                   ),
                   _StatCard(
-                    title: 'Tổng số bài viết',
+                    title: 'Bài viết',
                     value: stats.totalReviews.toString(),
                     icon: Icons.article_outlined,
                     color: const Color(0xFF8B5CF6),
-                    trend: '+18%',
                   ),
                   _StatCard(
                     title: 'Bình luận chờ duyệt',
                     value: stats.pendingComments.toString(),
                     icon: Icons.comment_outlined,
                     color: const Color(0xFFEF4444),
-                    trend: '',
+                  ),
+                  _StatCard(
+                    title: 'AI Drafts chờ duyệt',
+                    value: stats.pendingAiDrafts.toString(),
+                    icon: Icons.auto_awesome,
+                    color: const Color(0xFFF97316),
+                    onTap: () => context.go('/admin/ai-content'),
                   ),
                 ],
               );
@@ -176,7 +179,7 @@ class AdminOverviewScreen extends ConsumerWidget {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: () => context.go('/admin/reviews'),
                         style: TextButton.styleFrom(
                           foregroundColor: const Color(0xFF6366F1),
                           textStyle: const TextStyle(
@@ -293,95 +296,79 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  final String trend;
+  final VoidCallback? onTap;
 
   const _StatCard({
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
-    required this.trend,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.1), width: 1),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: color, size: 26),
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: onTap != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.arrow_upward,
-                      color: Colors.green,
-                      size: 14,
+            ],
+            border: Border.all(
+              color: Colors.grey.withValues(alpha: 0.1),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      trend,
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                    child: Icon(icon, color: color, size: 24),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -45,12 +45,6 @@ class SuggestionChipsRow extends StatefulWidget {
   /// Curated list of suggestion chips.
   static const List<SuggestionData> suggestions = [
     SuggestionData(
-      label: 'Gợi ý cho bạn',
-      emoji: '✨',
-      searchQuery: 'Gợi ý cho bạn',
-      filterType: SuggestionFilterType.none,
-    ),
-    SuggestionData(
       label: 'Gần tôi',
       emoji: '📍',
       searchQuery: 'Gần tôi',

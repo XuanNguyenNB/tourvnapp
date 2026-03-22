@@ -40,6 +40,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Auto-load GPS khi mở Home nếu đã có quyền trước đó
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoLoadLocationIfGranted();
+    });
+  }
+
+  /// Tự động load vị trí GPS nếu đã được cấp quyền trước đó.
+  /// Đảm bảo proximity scoring hoạt động ngay khi restart app.
+  Future<void> _autoLoadLocationIfGranted() async {
+    final notifier = ref.read(userLocationProvider.notifier);
+    await notifier.loadPosition();
   }
 
   void _onScroll() {
@@ -75,9 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .catchError((_) => <ContentItem>[]);
   }
 
-  /// Whether the current chip is "Gợi ý cho bạn" (recommendation-only, no feed filter).
-  bool get _isRecommendationChip =>
-      _activeSuggestion != null && _activeSuggestion!.label == 'Gợi ý cho bạn';
+
 
   /// Handle chip tap: request GPS if needed, set boost category, scroll.
   void _handleChipTap(SuggestionData? suggestion) {
@@ -101,8 +110,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Request GPS for location-aware chips
     final needsGps =
-        suggestion.filterType == SuggestionFilterType.nearMe ||
-        suggestion.label == 'Gợi ý cho bạn';
+        suggestion.filterType == SuggestionFilterType.nearMe;
 
     if (needsGps) {
       _requestLocationIfNeeded();
@@ -341,9 +349,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   /// Builds the Instagram-style review feed, filtered by active suggestion.
-  ///
-  /// "Gợi ý cho bạn" chip does NOT filter the feed — it only affects
-  /// the recommendation section. All other chips filter normally.
   Widget _buildReviewFeed(BuildContext context, WidgetRef ref) {
     final contentAsync = ref.watch(filteredHomeContentProvider);
 
@@ -355,8 +360,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .map((rc) => rc.review)
             .toList();
 
-        // Apply suggestion filter (skip for "Gợi ý cho bạn" chip)
-        if (_activeSuggestion != null && !_isRecommendationChip) {
+        // Apply suggestion filter
+        if (_activeSuggestion != null) {
           final suggestion = _activeSuggestion!;
           if (suggestion.filterType == SuggestionFilterType.nearMe) {
             // GPS sort: attach distances and sort by nearest
@@ -394,7 +399,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             }).toList();
           }
         } else {
-          // No filter or recommendation chip — attach distance info for badges
+          // No filter — attach distance info for badges
           final locationState = ref.watch(userLocationProvider);
           if (locationState.hasPosition) {
             reviews = DistanceCalculator.attachDistances(

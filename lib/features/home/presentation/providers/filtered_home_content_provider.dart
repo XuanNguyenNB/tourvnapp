@@ -1,25 +1,27 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../domain/entities/content_item.dart';
 import './home_provider.dart';
 import './home_filter_provider.dart';
+import './user_location_provider.dart';
 import '../../../onboarding/presentation/providers/user_mood_preferences_provider.dart';
+import '../../../recommendation/data/repositories/user_profile_repository.dart';
+import '../../../../core/services/onboarding_service.dart';
 
-/// Provider for filtered home content based on user mood preferences.
+/// Provider for filtered home content based on user mood preferences,
+/// GPS proximity, and selected destination preferences from onboarding.
 ///
-/// **Filtering Logic:**
-/// - Content with matching moods appears first, sorted by match score
-/// - Match score = (number of matching moods) / (total user moods)
-/// - Non-matching content follows, sorted by engagement count
-/// - All content is still returned (no hard filtering)
-///
-/// **Reactive Updates:**
-/// - Watches homeContentProvider, userMoodPreferencesProvider, and homeFilterProvider
-/// - Automatically refreshes when any of these changes
+/// **Scoring Algorithm (composite):**
+/// 1. Mood match score (0-1): matching moods / total user moods
+/// 2. Proximity score (0-1): closer = higher (decay over 200km)
+/// 3. Destination preference score (0 or 0.5): boost if review belongs to
+///    a destination chosen during onboarding
 ///
 /// **Fallback Behavior:**
 /// - If no preferences set → returns original content order
+/// - If no GPS → proximity score = 0 for all items
 /// - If content loading fails → propagates error
-/// - If preferences loading fails → falls back to unfiltered content
 ///
 /// Story 6.5: Implement Personalized Feed Filtering
 /// Story 8-9: Added destination/category filtering with AND logic
@@ -28,10 +30,8 @@ final filteredHomeContentProvider =
       FilteredHomeContentNotifier.new,
     );
 
-/// Notifier that handles content filtering based on user mood preferences.
-///
-/// Uses scoring algorithm to rank content by relevance to user preferences
-/// while ensuring all content remains accessible.
+/// Notifier that handles content filtering based on user mood preferences,
+/// GPS distance, and onboarding destination preferences.
 class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
   @override
   Future<List<ContentItem>> build() async {
@@ -40,6 +40,9 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
 
     // Watch user mood preferences for reactive updates
     final moodsAsync = ref.watch(userMoodPreferencesProvider);
+
+    // Watch user location for proximity scoring
+    final locationState = ref.watch(userLocationProvider);
 
     // Wait for content to load
     final content = await contentAsync.when(
@@ -58,11 +61,16 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
     // Watch home filter for destination/category filtering (Story 8-9)
     final homeFilter = ref.watch(homeFilterProvider);
 
-    // Apply mood-based sorting first (Story 6-5)
-    var sortedContent = content;
-    if (userMoods.isNotEmpty) {
-      sortedContent = _filterContentByMoods(content, userMoods);
-    }
+    // Load preferred destination IDs from onboarding UserProfile
+    final preferredDestIds = await _loadPreferredDestinationIds();
+
+    // Apply composite scoring (mood + proximity + destination preference)
+    var sortedContent = _scoreAndSort(
+      content,
+      userMoods: userMoods,
+      userPosition: locationState.position,
+      preferredDestinationIds: preferredDestIds,
+    );
 
     // Apply destination/category filter (Story 8-9)
     if (homeFilter.hasFilters) {
@@ -72,48 +80,107 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
     return sortedContent;
   }
 
-  /// Filters and sorts content based on user mood preferences.
-  ///
-  /// **Scoring Algorithm:**
-  /// - Each content item gets a match score = matched_moods / total_user_moods
-  /// - Score of 1.0 = perfect match (all user moods present)
-  /// - Score of 0.0 = no matching moods
-  ///
-  /// **Sorting:**
-  /// - Primary: match score (descending)
-  /// - Secondary: engagement count (descending)
-  ///
-  /// **Returns:** Content sorted by relevance, with all items included
-  List<ContentItem> _filterContentByMoods(
-    List<ContentItem> content,
-    List<String> userMoods,
-  ) {
-    // Calculate match score for each content item
-    final scoredContent = content.map((item) {
-      final contentMoods = _getMoodsFromContent(item);
-      final matchCount = contentMoods
-          .where((m) => userMoods.contains(m))
-          .length;
-      final score = userMoods.isNotEmpty ? matchCount / userMoods.length : 0.0;
+  /// Load preferred destination IDs: Firestore first, then local fallback.
+  Future<Set<String>> _loadPreferredDestinationIds() async {
+    // 1. Try Firestore (authenticated users)
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final profileRepo = ref.read(userProfileRepositoryProvider);
+        final profile = await profileRepo.getProfile(user.uid);
+        if (profile != null && profile.preferredDestinationIds.isNotEmpty) {
+          return profile.preferredDestinationIds.toSet();
+        }
+      }
+    } catch (_) {
+      // Firestore unavailable — try local
+    }
+
+    // 2. Fallback: SharedPreferences (anonymous users / offline)
+    try {
+      final service = ref.read(onboardingServiceProvider);
+      final localIds = service.getDestinationPreferencesLocally();
+      if (localIds.isNotEmpty) {
+        return localIds.toSet();
+      }
+    } catch (_) {
+      // onboardingService not yet initialized
+    }
+
+    return <String>{};
+  }
+
+  /// Composite scoring: combines mood match, proximity, and destination
+  /// preference into a single score for sorting.
+  List<ContentItem> _scoreAndSort(
+    List<ContentItem> content, {
+    required List<String> userMoods,
+    required Position? userPosition,
+    required Set<String> preferredDestinationIds,
+  }) {
+    final hasAnySignal = userMoods.isNotEmpty ||
+        userPosition != null ||
+        preferredDestinationIds.isNotEmpty;
+
+    if (!hasAnySignal) return content;
+
+    final scored = content.map((item) {
+      double score = 0;
+
+      // ── 1. Mood match score (weight: 40%) ──
+      if (userMoods.isNotEmpty) {
+        final contentMoods = _getMoodsFromContent(item);
+        final matchCount =
+            contentMoods.where((m) => userMoods.contains(m)).length;
+        score += 0.4 * (matchCount / userMoods.length);
+      }
+
+      // ── 2. Proximity score (weight: 35%) ──
+      if (userPosition != null) {
+        final coords = _getCoordinates(item);
+        if (coords != null) {
+          final distKm = Geolocator.distanceBetween(
+                userPosition.latitude,
+                userPosition.longitude,
+                coords.$1,
+                coords.$2,
+              ) /
+              1000.0;
+          // Exponential decay: score = 1 at 0 km, ~0.5 at 140 km, ~0 at 500+ km
+          score += 0.35 * _proximityScore(distKm);
+        }
+      }
+
+      // ── 3. Destination preference boost (weight: 25%) ──
+      if (preferredDestinationIds.isNotEmpty) {
+        final destId = _getDestinationId(item);
+        if (destId != null && preferredDestinationIds.contains(destId)) {
+          score += 0.25;
+        }
+      }
+
       return _ScoredContent(item, score);
     }).toList();
 
-    // Sort by score (descending), then by engagement
-    scoredContent.sort((a, b) {
-      // Primary sort: match score (higher is better)
-      if (a.score != b.score) {
+    // Sort by composite score (desc), then by engagement (desc)
+    scored.sort((a, b) {
+      if ((a.score - b.score).abs() > 0.01) {
         return b.score.compareTo(a.score);
       }
-      // Secondary sort: engagement count (higher is better)
       return _getEngagement(b.item).compareTo(_getEngagement(a.item));
     });
 
-    return scoredContent.map((s) => s.item).toList();
+    return scored.map((s) => s.item).toList();
+  }
+
+  /// Exponential decay for proximity: closer = higher score.
+  /// Returns 1.0 at 0km, ~0.5 at ~140km, ~0.03 at 500km.
+  double _proximityScore(double distKm) {
+    const decayRate = 0.005; // controls how fast score drops
+    return 1.0 / (1.0 + decayRate * distKm * distKm);
   }
 
   /// Extracts mood tags from a content item.
-  ///
-  /// Uses Dart 3 pattern matching for type-safe extraction.
   List<String> _getMoodsFromContent(ContentItem item) {
     return switch (item) {
       DestinationContent(:final destination) => destination.moods ?? [],
@@ -121,9 +188,24 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
     };
   }
 
+  /// Extracts GPS coordinates from a content item.
+  (double, double)? _getCoordinates(ContentItem item) {
+    return switch (item) {
+      DestinationContent() => null, // Destinations don't carry GPS
+      ReviewContent(:final review) =>
+        review.hasCoordinates ? (review.latitude!, review.longitude!) : null,
+    };
+  }
+
+  /// Extracts destination ID from a content item.
+  String? _getDestinationId(ContentItem item) {
+    return switch (item) {
+      DestinationContent(:final destination) => destination.id,
+      ReviewContent(:final review) => review.destinationId,
+    };
+  }
+
   /// Gets engagement count for secondary sorting.
-  ///
-  /// Destinations use engagementCount, Reviews use likeCount.
   int _getEngagement(ContentItem item) {
     return switch (item) {
       DestinationContent(:final destination) => destination.engagementCount,
@@ -132,9 +214,7 @@ class FilteredHomeContentNotifier extends AsyncNotifier<List<ContentItem>> {
   }
 }
 
-/// Internal class to hold content item with its match score.
-///
-/// Used during sorting to avoid recalculating scores.
+/// Internal class to hold content item with its composite score.
 class _ScoredContent {
   final ContentItem item;
   final double score;

@@ -60,7 +60,7 @@ void main() {
         );
 
         final notifier = container.read(onboardingNotifierProvider.notifier);
-        final moods = {Mood.healing, Mood.adventure};
+        final moods = {Mood.healing, Mood.foodie};
 
         final result = await notifier.completeOnboarding(moods);
 
