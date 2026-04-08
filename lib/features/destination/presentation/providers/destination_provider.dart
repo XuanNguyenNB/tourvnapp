@@ -19,13 +19,14 @@ final destinationByIdProvider = FutureProvider.family<Destination, String>((
   id,
 ) async {
   final repository = ref.watch(destinationRepositoryProvider);
-  return repository.getDestinationById(id);
+  return repository.getPublishedDestinationById(id);
 });
 
-/// Provider for fetching all destinations
+/// Provider for fetching all destinations (cached across navigations)
 final allDestinationsProvider = FutureProvider<List<Destination>>((ref) async {
+  ref.keepAlive();
   final repository = ref.watch(destinationRepositoryProvider);
-  return repository.getAllDestinations();
+  return repository.getPublishedDestinations();
 });
 
 /// Provider for searching destinations

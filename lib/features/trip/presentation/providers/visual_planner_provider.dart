@@ -98,6 +98,30 @@ class VisualPlannerState {
     return conflictDays;
   }
 
+  /// Number of completed activities for the current day.
+  int get completedCountForCurrentDay {
+    final day = currentDay;
+    if (day == null) return 0;
+    return day.activities.where((a) => a.isCompleted).length;
+  }
+
+  /// Total completed activities across all days.
+  int get totalCompletedCount {
+    if (currentTrip == null) return 0;
+    return currentTrip!.days.fold(
+      0,
+      (total, day) => total + day.activities.where((a) => a.isCompleted).length,
+    );
+  }
+
+  /// Completion progress (0.0 - 1.0) for the entire trip.
+  double get completionProgress {
+    if (currentTrip == null) return 0.0;
+    final total = currentTrip!.totalActivities;
+    if (total == 0) return 0.0;
+    return totalCompletedCount / total;
+  }
+
   /// Convert time slot string to sort order.
   int _timeSlotOrder(String slot) {
     switch (slot.toLowerCase()) {
@@ -384,6 +408,133 @@ class VisualPlannerNotifier extends Notifier<VisualPlannerState> {
     );
     state = state.copyWith(currentTrip: optimizedTrip);
     await updateTrip();
+  }
+
+  /// Toggle the completion status of an activity.
+  ///
+  /// Uses optimistic UI: updates local state first, then persists.
+  /// Only works for saved trips (not pending).
+  Future<void> toggleActivityCompletion(
+    int dayIndex,
+    String activityId,
+  ) async {
+    final trip = state.currentTrip;
+    if (trip == null || state.isPending) return;
+
+    // Find the current activity to flip its status
+    final day = trip.days[dayIndex];
+    final activity = day.activities.firstWhere(
+      (a) => a.id == activityId,
+      orElse: () => throw StateError('Activity not found'),
+    );
+    final newStatus = !activity.isCompleted;
+
+    // Optimistic update: update local state immediately
+    final updatedDays = List<TripDay>.from(trip.days.map((d) => d.copyWith(
+      activities: List<Activity>.from(d.activities),
+    )));
+    final updatedActivities = updatedDays[dayIndex].activities.map((a) {
+      if (a.id == activityId) return a.copyWith(isCompleted: newStatus);
+      return a;
+    }).toList();
+    updatedDays[dayIndex] = updatedDays[dayIndex].copyWith(
+      activities: updatedActivities,
+    );
+    final updatedTrip = trip.copyWith(
+      days: updatedDays,
+      updatedAt: DateTime.now(),
+    );
+    state = state.copyWith(currentTrip: updatedTrip);
+
+    // Persist to Firestore
+    try {
+      await ref.read(tripRepositoryProvider).toggleActivityCompletion(
+        trip,
+        dayIndex,
+        activityId,
+        newStatus,
+      );
+    } catch (e) {
+      debugPrint('Error toggling activity completion: $e');
+      // Revert on failure
+      state = state.copyWith(currentTrip: trip);
+    }
+  }
+
+  /// Remove an activity from a saved trip.
+  ///
+  /// Uses optimistic UI: updates local state first, then persists.
+  /// Returns the removed [Activity] for undo support, or null on failure.
+  Future<Activity?> removeActivityFromSavedTrip(
+    int dayIndex,
+    String activityId,
+  ) async {
+    final trip = state.currentTrip;
+    if (trip == null || state.isPending) return null;
+    if (dayIndex < 0 || dayIndex >= trip.days.length) return null;
+
+    // Find the activity to remove
+    final day = trip.days[dayIndex];
+    final activityIndex = day.activities.indexWhere((a) => a.id == activityId);
+    if (activityIndex == -1) return null;
+
+    final removedActivity = day.activities[activityIndex];
+
+    // Optimistic update: remove from local state immediately
+    final updatedDays = trip.days.map((d) => d.copyWith(
+      activities: List<Activity>.from(d.activities),
+    )).toList();
+    updatedDays[dayIndex].activities.removeAt(activityIndex);
+    final updatedTrip = trip.copyWith(
+      days: updatedDays,
+      updatedAt: DateTime.now(),
+    );
+    state = state.copyWith(currentTrip: updatedTrip);
+
+    // Persist to Firestore
+    try {
+      await ref.read(tripRepositoryProvider).updateTrip(updatedTrip);
+      debugPrint('✅ [RemoveActivity] Removed "${removedActivity.locationName}"');
+    } catch (e) {
+      debugPrint('🔴 [RemoveActivity] Error: $e');
+      // Revert on failure
+      state = state.copyWith(currentTrip: trip);
+      return null;
+    }
+
+    return removedActivity;
+  }
+
+  /// Restore a previously removed activity to a saved trip.
+  ///
+  /// Used for undo functionality after deleting an activity.
+  Future<void> restoreActivityToSavedTrip(
+    int dayIndex,
+    Activity activity,
+    int originalIndex,
+  ) async {
+    final trip = state.currentTrip;
+    if (trip == null || state.isPending) return;
+    if (dayIndex < 0 || dayIndex >= trip.days.length) return;
+
+    // Re-insert the activity at its original position
+    final updatedDays = trip.days.map((d) => d.copyWith(
+      activities: List<Activity>.from(d.activities),
+    )).toList();
+    final clampedIndex = originalIndex.clamp(0, updatedDays[dayIndex].activities.length);
+    updatedDays[dayIndex].activities.insert(clampedIndex, activity);
+    final updatedTrip = trip.copyWith(
+      days: updatedDays,
+      updatedAt: DateTime.now(),
+    );
+    state = state.copyWith(currentTrip: updatedTrip);
+
+    // Persist
+    try {
+      await ref.read(tripRepositoryProvider).updateTrip(updatedTrip);
+    } catch (e) {
+      debugPrint('🔴 [RestoreActivity] Error: $e');
+    }
   }
 }
 

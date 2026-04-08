@@ -13,8 +13,9 @@ import 'package:tour_vn/features/home/presentation/providers/user_location_provi
 /// - Giới hạn top 15 kết quả gần nhất
 ///
 /// Trả về list rỗng nếu không có GPS position.
-final nearbyLocationsProvider =
-    FutureProvider<List<NearbyLocationItem>>((ref) async {
+final nearbyLocationsProvider = FutureProvider<List<NearbyLocationItem>>((
+  ref,
+) async {
   // Get user position
   final locationState = ref.watch(userLocationProvider);
   final userPosition = locationState.position;
@@ -23,7 +24,7 @@ final nearbyLocationsProvider =
 
   // Get all locations from Firestore
   final destRepo = ref.read(destinationRepositoryProvider);
-  final allLocations = await destRepo.getAllLocations();
+  final allLocations = await destRepo.getPublishedLocations();
 
   // Filter locations with GPS coordinates and calculate distance
   final nearbyItems = <NearbyLocationItem>[];
@@ -38,10 +39,12 @@ final nearbyLocationsProvider =
       location.longitude!,
     );
 
-    nearbyItems.add(NearbyLocationItem(
-      location: location,
-      distanceKm: distanceMeters / 1000.0,
-    ));
+    nearbyItems.add(
+      NearbyLocationItem(
+        location: location,
+        distanceKm: distanceMeters / 1000.0,
+      ),
+    );
   }
 
   // Sort by distance (nearest first)

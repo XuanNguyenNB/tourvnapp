@@ -104,9 +104,9 @@ class LocationSearchNotifier extends Notifier<LocationSearchState> {
 
       // Run searches in parallel
       final results = await Future.wait([
-        destRepo.getAllDestinations(),
-        destRepo.searchLocations(query),
-        reviewRepo.searchReviewsByTitle(query),
+        destRepo.getPublishedDestinations(),
+        destRepo.searchPublishedLocations(query),
+        reviewRepo.searchPublishedReviewsByTitle(query),
       ]);
 
       // ── Destinations (client-side filter) ──
@@ -136,7 +136,7 @@ class LocationSearchNotifier extends Notifier<LocationSearchState> {
         finalLocations = sorted.take(_maxResultsPerCategory).toList();
       } else {
         // Server returned few results → fallback: fetch all & filter client-side
-        final allLocations = await destRepo.getAllLocations();
+        final allLocations = await destRepo.getPublishedLocations();
         final clientMatched = allLocations.where((loc) {
           final nameLower = loc.name.toLowerCase();
           final noDiacriticsName = VietnameseTextUtils.removeDiacritics(
@@ -175,7 +175,7 @@ class LocationSearchNotifier extends Notifier<LocationSearchState> {
         finalReviews = serverReviews.take(_maxResultsPerCategory).toList();
       } else {
         // Fallback: fetch all & filter client-side
-        final allReviews = await reviewRepo.getAllReviews();
+        final allReviews = await reviewRepo.getPublishedReviews();
         final clientMatched = allReviews.where((r) {
           final titleLower = r.title.toLowerCase();
           final noDiacriticsTitle = VietnameseTextUtils.removeDiacritics(

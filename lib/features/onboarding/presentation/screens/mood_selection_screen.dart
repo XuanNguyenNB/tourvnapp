@@ -567,7 +567,7 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
         if (userPos != null) {
           final destRepo = ref.read(destinationRepositoryProvider);
           return FutureBuilder(
-            future: destRepo.getAllLocations(),
+            future: destRepo.getPublishedLocations(),
             builder: (context, snapshot) {
               var sortedList = filtered;
               Map<String, double> distMap = {};
@@ -619,7 +619,10 @@ class _MoodSelectionScreenState extends ConsumerState<MoodSelectionScreen>
     );
   }
 
-  Widget _buildDestinationGridView(List<dynamic> destinations, {Map<String, double>? distMap}) {
+  Widget _buildDestinationGridView(
+    List<dynamic> destinations, {
+    Map<String, double>? distMap,
+  }) {
     if (destinations.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(24),
@@ -1175,17 +1178,19 @@ class _DestinationCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF06B6D4).withValues(alpha: 0.25),
+                          color: const Color(
+                            0xFF06B6D4,
+                          ).withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                              '${distanceKm!.toStringAsFixed(0)} km',
-                              style: GoogleFonts.beVietnamPro(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF06B6D4),
-                              ),
-                            ),
+                          '${distanceKm!.toStringAsFixed(0)} km',
+                          style: GoogleFonts.beVietnamPro(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF06B6D4),
+                          ),
+                        ),
                       ),
                     ],
                   ],

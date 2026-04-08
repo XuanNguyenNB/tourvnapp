@@ -39,7 +39,7 @@ final categoryTabsProvider = FutureProvider<List<Category>>((ref) async {
 final locationsForDestinationProvider =
     FutureProvider.family<List<Location>, String>((ref, destinationId) async {
       final repository = ref.read(destinationRepositoryProvider);
-      return repository.getLocationsByDestination(destinationId);
+      return repository.getPublishedLocationsByDestination(destinationId);
     });
 
 /// Notifier for managing selected category state.
@@ -114,5 +114,5 @@ final locationByIdProvider = FutureProvider.family<Location, String>((
   locationId,
 ) async {
   final repository = ref.read(destinationRepositoryProvider);
-  return repository.getLocationById(locationId);
+  return repository.getPublishedLocationById(locationId);
 });

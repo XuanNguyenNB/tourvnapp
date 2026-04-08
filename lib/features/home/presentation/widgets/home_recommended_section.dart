@@ -9,6 +9,7 @@ import '../providers/user_location_provider.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../../../recommendation/domain/entities/recommendation_item.dart';
+import '../../../recommendation/presentation/widgets/recommendation_explainability_sheet.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/shimmer_placeholder.dart';
 
@@ -77,7 +78,7 @@ class HomeRecommendedSection extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
-                  'AI',
+                  'AI cá nhân hóa',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -118,7 +119,7 @@ class _RecommendedSectionResolver extends ConsumerWidget {
     final destRepo = ref.watch(destinationRepositoryProvider);
 
     return FutureBuilder<List<Location>>(
-      future: destRepo.getAllLocations(),
+      future: destRepo.getPublishedLocations(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 
@@ -163,7 +164,7 @@ class _RecommendedSectionResolver extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
-                        'AI',
+                        'AI cá nhân hóa',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -176,7 +177,7 @@ class _RecommendedSectionResolver extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 210,
+                height: 240,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -203,9 +204,9 @@ class _RecommendedSectionResolver extends ConsumerWidget {
 
                     return _HomeRecommendedCard(
                       location: loc,
-                      reasons: rec.reasons,
+                      recommendation: rec,
                       distanceKm: distanceKm,
-                      onTap: () {
+                      onViewLocation: () {
                         context.push(
                           '/location/${loc.destinationId}/${loc.id}',
                           extra: loc,
@@ -225,15 +226,15 @@ class _RecommendedSectionResolver extends ConsumerWidget {
 
 class _HomeRecommendedCard extends StatelessWidget {
   final Location location;
-  final List<String> reasons;
+  final RecommendationItem recommendation;
   final double? distanceKm;
-  final VoidCallback onTap;
+  final VoidCallback onViewLocation;
 
   const _HomeRecommendedCard({
     required this.location,
-    required this.reasons,
+    required this.recommendation,
     this.distanceKm,
-    required this.onTap,
+    required this.onViewLocation,
   });
 
   String _formatDist(double km) {
@@ -245,7 +246,14 @@ class _HomeRecommendedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        showRecommendationExplainabilitySheet(
+          context: context,
+          location: location,
+          recommendation: recommendation,
+          onViewLocation: onViewLocation,
+        );
+      },
       child: Container(
         width: 160,
         decoration: BoxDecoration(
@@ -339,7 +347,7 @@ class _HomeRecommendedCard extends StatelessWidget {
             // Content
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -354,15 +362,37 @@ class _HomeRecommendedCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (reasons.isNotEmpty)
-                      Text(
-                        reasons.first,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
+                    if (recommendation.reasons.isNotEmpty)
+                      Flexible(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          clipBehavior: Clip.hardEdge,
+                          children: recommendation.reasons
+                              .take(2)
+                              .map(
+                                (reason) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5F3FF),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    reason,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                     if (location.rating != null) ...[

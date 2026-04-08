@@ -37,7 +37,18 @@ class ProfileSettingsSection extends StatelessWidget {
                 subtitle: 'Thay đổi phong cách du lịch của bạn',
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  context.push('/onboarding?edit=true');
+                  context.push('/profile/preferences');
+                },
+              ),
+              const Divider(height: 1, indent: 56),
+              // Saved/Bookmarked items
+              _SettingsTile(
+                icon: Icons.bookmark_outline,
+                title: 'Đã lưu',
+                subtitle: 'Địa điểm và bài viết đã lưu',
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/saved');
                 },
               ),
               const Divider(height: 1, indent: 56),
@@ -56,7 +67,10 @@ class ProfileSettingsSection extends StatelessWidget {
                 icon: Icons.notifications_outlined,
                 title: 'Thông báo',
                 subtitle: 'Quản lý thông báo',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/profile/notification-settings');
+                },
               ),
               const Divider(height: 1, indent: 56),
               // Privacy
@@ -64,7 +78,10 @@ class ProfileSettingsSection extends StatelessWidget {
                 icon: Icons.security_outlined,
                 title: 'Quyền riêng tư',
                 subtitle: 'Bảo mật tài khoản',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/profile/privacy');
+                },
               ),
               const Divider(height: 1, indent: 56),
               // Help & Support
@@ -72,7 +89,10 @@ class ProfileSettingsSection extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: 'Trợ giúp',
                 subtitle: 'FAQ và hỗ trợ',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.push('/profile/help');
+                },
               ),
               const Divider(height: 1, indent: 56),
               _SettingsTile(

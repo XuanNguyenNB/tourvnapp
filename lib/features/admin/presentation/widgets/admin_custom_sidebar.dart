@@ -15,16 +15,22 @@ class AdminSidebarItem {
 }
 
 class AdminCustomSidebar extends StatefulWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final List<AdminSidebarItem> destinations;
-
   const AdminCustomSidebar({
     super.key,
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.destinations,
+    this.userName,
+    this.userEmail,
+    this.userAvatarUrl,
   });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<AdminSidebarItem> destinations;
+  final String? userName;
+  final String? userEmail;
+  final String? userAvatarUrl;
 
   @override
   State<AdminCustomSidebar> createState() => _AdminCustomSidebarState();
@@ -32,54 +38,94 @@ class AdminCustomSidebar extends StatefulWidget {
 
 class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
   int? _hoveredIndex;
+  bool _collapsed = false;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
+    final width = _collapsed ? 92.0 : 268.0;
+    final resolvedName = widget.userName?.trim().isNotEmpty == true
+        ? widget.userName!.trim()
+        : 'Quản trị viên';
+    final resolvedEmail = widget.userEmail?.trim().isNotEmpty == true
+        ? widget.userEmail!.trim()
+        : null;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: width,
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
           right: BorderSide(
-            color: Colors.grey.withValues(alpha: 0.15),
+            color: Colors.grey.withValues(alpha: 0.12),
             width: 1,
           ),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 18,
+            offset: const Offset(4, 0),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Logo Area
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 36, 24, 24),
+            padding: EdgeInsets.fromLTRB(_collapsed ? 18 : 24, 28, 18, 20),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.explore, color: Color(0xFF6366F1)),
-                ),
-                const SizedBox(width: 14),
-                const Text(
-                  'TourVN',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
+                  child: const Icon(
+                    Icons.travel_explore,
+                    color: Color(0xFF6366F1),
                   ),
                 ),
-                const SizedBox(width: 6),
+                if (!_collapsed) ...[
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TourVN Admin',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'CMS nội bộ',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                IconButton(
+                  tooltip: _collapsed ? 'Mở rộng menu' : 'Thu gọn menu',
+                  onPressed: () => setState(() => _collapsed = !_collapsed),
+                  icon: Icon(
+                    _collapsed
+                        ? Icons.chevron_right_rounded
+                        : Icons.chevron_left_rounded,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Menu Items
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: _collapsed ? 14 : 16),
               itemCount: widget.destinations.length,
               itemBuilder: (context, index) {
                 final item = widget.destinations[index];
@@ -95,70 +141,86 @@ class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
                     child: GestureDetector(
                       onTap: () => widget.onDestinationSelected(index),
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
+                        duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: _collapsed ? 0 : 16,
                           vertical: 14,
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF6366F1).withValues(alpha: 0.1)
+                              ? const Color(0xFFEEF2FF)
                               : isHovered
                               ? Colors.grey.withValues(alpha: 0.05)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
+                          border: isSelected
+                              ? Border.all(color: const Color(0xFFC7D2FE))
+                              : null,
                         ),
                         child: Row(
+                          mainAxisAlignment: _collapsed
+                              ? MainAxisAlignment.center
+                              : MainAxisAlignment.start,
                           children: [
-                            Icon(
-                              isSelected ? item.selectedIcon : item.icon,
-                              color: isSelected
-                                  ? const Color(0xFF6366F1)
-                                  : isHovered
-                                  ? Colors.grey[800]
-                                  : Colors.grey[500],
-                              size: 22,
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                item.label,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  isSelected ? item.selectedIcon : item.icon,
                                   color: isSelected
-                                      ? const Color(0xFF6366F1)
+                                      ? const Color(0xFF4F46E5)
                                       : isHovered
                                       ? Colors.grey[800]
-                                      : Colors.grey[600],
+                                      : Colors.grey[500],
+                                  size: 22,
                                 ),
-                              ),
+                                if (item.badgeCount > 0)
+                                  Positioned(
+                                    right: -10,
+                                    top: -8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEF4444),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        item.badgeCount > 99
+                                            ? '99+'
+                                            : item.badgeCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                            // Badge count
-                            if (item.badgeCount > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEF4444),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                            if (!_collapsed) ...[
+                              const SizedBox(width: 14),
+                              Expanded(
                                 child: Text(
-                                  item.badgeCount > 99
-                                      ? '99+'
-                                      : item.badgeCount.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                                  item.label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isSelected
+                                        ? const Color(0xFF4338CA)
+                                        : isHovered
+                                        ? Colors.grey[800]
+                                        : Colors.grey[600],
                                   ),
                                 ),
                               ),
+                            ],
                           ],
                         ),
                       ),
@@ -168,34 +230,89 @@ class _AdminCustomSidebarState extends State<AdminCustomSidebar> {
               },
             ),
           ),
-          // Footer area
           Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.grey[200],
-                  child: const Icon(Icons.person, color: Colors.grey, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Quản trị viên',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+            padding: EdgeInsets.fromLTRB(
+              _collapsed ? 16 : 20,
+              16,
+              _collapsed ? 16 : 20,
+              20,
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: _collapsed ? 10 : 12,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: _collapsed
+                  ? CircleAvatar(
+                      radius: 18,
+                      backgroundColor: const Color(0xFFEDE9FE),
+                      backgroundImage: widget.userAvatarUrl?.isNotEmpty == true
+                          ? NetworkImage(widget.userAvatarUrl!)
+                          : null,
+                      child: widget.userAvatarUrl?.isNotEmpty == true
+                          ? null
+                          : Text(
+                              resolvedName.characters.first.toUpperCase(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF6D28D9),
+                              ),
+                            ),
+                    )
+                  : Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: const Color(0xFFEDE9FE),
+                          backgroundImage:
+                              widget.userAvatarUrl?.isNotEmpty == true
+                              ? NetworkImage(widget.userAvatarUrl!)
+                              : null,
+                          child: widget.userAvatarUrl?.isNotEmpty == true
+                              ? null
+                              : Text(
+                                  resolvedName.characters.first.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF6D28D9),
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                resolvedName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                resolvedEmail ?? 'Quản trị hệ thống',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'taxuannguyen1@gmail.com',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
             ),
           ),
         ],

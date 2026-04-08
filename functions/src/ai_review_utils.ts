@@ -13,10 +13,14 @@ export type ReviewNormalizationOptions = {
   destinationName?: string;
   existingLocations: LocationContext[];
   articleStyle?: string;
+  status?: string;
+  aiPrompt?: string;
+  aiProvider?: string;
 };
 
 const allowedReviewCategories = new Set(["food", "places", "stay"]);
 const allowedArticleStyles = new Set(["review", "guide", "top-list", "tips"]);
+const allowedReviewStatuses = new Set(["draft_ai", "preview_ai", "published"]);
 
 function readOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -38,6 +42,15 @@ function readOptionalStringArray(value: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
+function readOptionalObjectArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item));
+}
+
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
@@ -50,6 +63,15 @@ function clampIsoDate(value: unknown): string {
 
   const date = new Date(parsed);
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function normalizeDomain(rawUrl: string | undefined): string | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    return new URL(rawUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
 }
 
 function nonNegativeInteger(value: unknown): number {
@@ -113,6 +135,10 @@ function ensureUniqueId(baseId: string, usedIds: Set<string>): string {
 
 export function normalizeArticleStyle(style?: string): string {
   return style && allowedArticleStyles.has(style) ? style : "review";
+}
+
+function normalizeReviewStatus(status?: string): string {
+  return status && allowedReviewStatuses.has(status) ? status : "draft_ai";
 }
 
 export function slugifyVietnamese(input: string, fallback = "ai-review"): string {
@@ -194,15 +220,30 @@ export function normalizeReviewDraft(
   const slug = slugifyVietnamese(readOptionalString(draft.slug) ?? title);
   const idBase = slugifyVietnamese(readOptionalString(draft.id) ?? title, slug);
   const id = usedIds ? ensureUniqueId(idBase, usedIds) : idBase;
+  const aiSummary = readOptionalString(draft.aiSummary);
+  const aiAngle = readOptionalString(draft.aiAngle);
+  const aiOutline = uniqueStrings(readOptionalStringArray(draft.aiOutline));
+  const sourceReferences = normalizeSourceReferences(
+    draft.sourceReferences,
+    draft.citations,
+    draft.search_results,
+  );
+  const heroImageCandidates = normalizeImageCandidates(
+    draft.heroImageCandidates ?? draft.images,
+  );
+  const heroImage = readOptionalString(draft.heroImage) ?? heroImageCandidates[0]?.imageUrl ?? "";
+  const heroImageSourceUrl = readOptionalString(draft.heroImageSourceUrl) ?? heroImageCandidates[0]?.sourceUrl;
+  const fullText = readOptionalString(draft.fullText) ?? aiSummary ?? aiOutline.map((item) => `- ${item}`).join("\n");
+  const status = normalizeReviewStatus(options.status ?? readOptionalString(draft.status));
 
   return {
     id,
-    heroImage: readOptionalString(draft.heroImage) ?? "",
+    heroImage,
     title,
     authorId: "ai-writer",
     authorName: "Bien tap vien AI TourVN",
     authorAvatar: readOptionalString(draft.authorAvatar) ?? "",
-    fullText: readOptionalString(draft.fullText) ?? "",
+    fullText,
     createdAt: clampIsoDate(draft.createdAt),
     likeCount: nonNegativeInteger(draft.likeCount),
     commentCount: nonNegativeInteger(draft.commentCount),
@@ -212,7 +253,15 @@ export function normalizeReviewDraft(
     destinationName: options.destinationName ?? readOptionalString(draft.destinationName) ?? null,
     category: normalizeCategory(draft.category, relatedLocationIds, locationById),
     slug,
-    status: "draft_ai",
+    status,
+    aiSummary: aiSummary ?? null,
+    aiAngle: aiAngle ?? null,
+    aiOutline,
+    sourceReferences,
+    heroImageCandidates,
+    heroImageSourceUrl: heroImageSourceUrl ?? null,
+    aiPrompt: options.aiPrompt ?? readOptionalString(draft.aiPrompt) ?? null,
+    aiProvider: options.aiProvider ?? readOptionalString(draft.aiProvider) ?? "perplexity",
   };
 }
 
@@ -224,4 +273,72 @@ export function normalizeReviewDraftArray(
   return drafts.map((draft, index) =>
     normalizeReviewDraft(draft, options, usedIds, index + 1),
   );
+}
+
+function normalizeSourceReferences(
+  value: unknown,
+  citations: unknown,
+  searchResults: unknown,
+): Array<Record<string, unknown>> {
+  const direct = readOptionalObjectArray(value)
+    .map((item) => {
+      const url = readOptionalString(item.url);
+      if (!url) return null;
+      return {
+        title: readOptionalString(item.title) ?? url,
+        url,
+        date: readOptionalString(item.date) ?? null,
+        domain: readOptionalString(item.domain) ?? normalizeDomain(url) ?? null,
+      };
+    })
+    .filter((item) => item !== null) as Array<Record<string, unknown>>;
+
+  if (direct.length > 0) {
+    return direct;
+  }
+
+  const fromSearch = readOptionalObjectArray(searchResults)
+    .map((item) => {
+      const url = readOptionalString(item.url);
+      if (!url) return null;
+      return {
+        title: readOptionalString(item.title) ?? url,
+        url,
+        date: readOptionalString(item.date) ?? null,
+        domain: readOptionalString(item.domain) ?? normalizeDomain(url) ?? null,
+      };
+    })
+    .filter((item) => item !== null) as Array<Record<string, unknown>>;
+
+  if (fromSearch.length > 0) {
+    return fromSearch;
+  }
+
+  return readOptionalStringArray(citations).map((url) => ({
+    title: url,
+    url,
+    date: null,
+    domain: normalizeDomain(url) ?? null,
+  }));
+}
+
+function normalizeImageCandidates(value: unknown): Array<Record<string, unknown>> {
+  return readOptionalObjectArray(value)
+    .map((item) => {
+      const imageUrl = readOptionalString(item.imageUrl) ??
+        readOptionalString(item.image_url);
+      const sourceUrl = readOptionalString(item.sourceUrl) ??
+        readOptionalString(item.source_url) ??
+        readOptionalString(item.origin_url);
+      if (!imageUrl || !sourceUrl) {
+        return null;
+      }
+      return {
+        imageUrl,
+        sourceUrl,
+        title: readOptionalString(item.title) ?? sourceUrl,
+        domain: readOptionalString(item.domain) ?? normalizeDomain(sourceUrl) ?? null,
+      };
+    })
+    .filter((item) => item !== null) as Array<Record<string, unknown>>;
 }

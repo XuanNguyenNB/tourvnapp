@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,10 +14,13 @@ import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/domain/entities/category.dart';
 import '../../../home/domain/utils/destination_emoji_helper.dart';
 import '../../../recommendation/domain/entities/user_profile.dart';
+import '../../../recommendation/presentation/providers/recommendation_provider.dart';
 import '../../../trip/presentation/providers/pending_trip_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/models/auto_plan_request.dart';
 import '../../domain/services/auto_plan_service.dart';
 import '../providers/auto_plan_provider.dart';
+import '../../../saved/presentation/providers/saved_provider.dart';
 
 /// Tags available for filtering.
 const _availableTags = [
@@ -38,7 +42,14 @@ const _availableTags = [
 /// Phase 1-3: AutoPlan wizard steps (basic → prefs → advanced)
 /// Phase 4: Generate & preview
 class AiPlanScreen extends ConsumerStatefulWidget {
-  const AiPlanScreen({super.key});
+  const AiPlanScreen({
+    super.key,
+    this.initialDestinationId,
+    this.initialDestinationName,
+  });
+
+  final String? initialDestinationId;
+  final String? initialDestinationName;
 
   @override
   ConsumerState<AiPlanScreen> createState() => _AiPlanScreenState();
@@ -69,17 +80,103 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
   GroupType _group = GroupType.solo;
   bool _useBehavior = true;
   bool _diversify = true;
+  bool _usePinnedLocations = true;
 
   // ── Expandable stop cards ──
   final Set<String> _expandedStops = {};
   final Map<String, String> _lazyTips = {};
   final Set<String> _loadingTips = {};
+  bool _didFallbackOnTip = false;
+  String? _tipFallbackMessage;
+  String? _lastPrefetchSignature;
+
+  // ── Typewriter animation ──
+  String _animatedTitle = '';
+  String _animatedDescription = '';
+  String? _lastEnrichedTitle;
+  bool _isTyping = false;
+
+  // ── Scroll controller for auto-scroll ──
+  final ScrollController _previewScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    final initialDestinationId = widget.initialDestinationId;
+    final initialDestinationName = widget.initialDestinationName;
+    if (initialDestinationId != null &&
+        initialDestinationName != null &&
+        initialDestinationId.trim().isNotEmpty &&
+        initialDestinationName.trim().isNotEmpty) {
+      _selectedDestination = Destination(
+        id: initialDestinationId,
+        name: initialDestinationName,
+        heroImage: '',
+        description: '',
+      );
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     _budgetController.dispose();
+    _previewScrollController.dispose();
     super.dispose();
+  }
+
+  /// Start typewriter animation for a given full text.
+  void _startTypewriter(String title, String description) {
+    if (_isTyping) return;
+    _isTyping = true;
+    _animatedTitle = '';
+    _animatedDescription = '';
+    _typewriterStep(title, description, 0, true);
+  }
+
+  void _typewriterStep(
+    String title,
+    String description,
+    int charIndex,
+    bool isTitle,
+  ) {
+    if (!mounted) return;
+    if (isTitle) {
+      if (charIndex < title.length) {
+        setState(() {
+          _animatedTitle = title.substring(0, charIndex + 1);
+        });
+        Future.delayed(const Duration(milliseconds: 22), () {
+          _typewriterStep(title, description, charIndex + 1, true);
+        });
+      } else {
+        // Title done, start description
+        _typewriterStep(title, description, 0, false);
+      }
+    } else {
+      if (charIndex < description.length) {
+        setState(() {
+          _animatedDescription = description.substring(0, charIndex + 1);
+        });
+        Future.delayed(const Duration(milliseconds: 15), () {
+          _typewriterStep(title, description, charIndex + 1, false);
+        });
+      } else {
+        setState(() => _isTyping = false);
+      }
+    }
+  }
+
+  void _autoScrollToBottom() {
+    if (!_previewScrollController.hasClients) return;
+    Future.delayed(const Duration(milliseconds: 30), () {
+      if (!mounted || !_previewScrollController.hasClients) return;
+      _previewScrollController.animateTo(
+        _previewScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -89,6 +186,7 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
   @override
   Widget build(BuildContext context) {
     final isPickingDest = _selectedDestination == null;
+    final aiHealthAsync = ref.watch(aiBackendHealthProvider);
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       extendBodyBehindAppBar: isPickingDest,
@@ -112,13 +210,26 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
       ),
       body: SafeArea(
         top: !isPickingDest,
-        child: isPickingDest ? _buildDestinationPicker() : _buildWizard(),
+        child: isPickingDest
+            ? _buildDestinationPicker()
+            : _buildWizard(aiHealthAsync),
       ),
     );
   }
 
   void _handleBack() {
-    if (_selectedDestination != null) {
+    if (_step == 3) {
+      // From preview, go back to advanced settings
+      ref.read(autoPlanProvider.notifier).clear();
+      _lazyTips.clear();
+      _loadingTips.clear();
+      setState(() {
+        _step = 2;
+        _isTyping = false;
+        _animatedTitle = '';
+        _animatedDescription = '';
+      });
+    } else if (_selectedDestination != null) {
       // Go back to destination picker
       setState(() {
         _selectedDestination = null;
@@ -225,7 +336,11 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
         Expanded(
           child: destinationsAsync.when(
             data: (destinations) {
-              final filtered = _filterDestinations(destinations);
+              final profileAsync = ref.watch(userProfileProvider);
+              final preferredIds = profileAsync.whenOrNull(
+                data: (p) => p?.preferredDestinationIds,
+              ) ?? [];
+              final filtered = _filterDestinations(destinations, preferredIds);
               if (filtered.isEmpty) {
                 return const Center(
                   child: Text(
@@ -240,8 +355,10 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final d = filtered[index];
+                  final isPreferred = preferredIds.contains(d.id);
                   return _DestinationTile(
                     destination: d,
+                    isPreferred: isPreferred,
                     onTap: () {
                       HapticFeedback.lightImpact();
                       setState(() => _selectedDestination = d);
@@ -265,17 +382,32 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     );
   }
 
-  List<Destination> _filterDestinations(List<Destination> all) {
-    if (_searchQuery.isEmpty) return all;
-    final q = _searchQuery.toLowerCase();
-    return all.where((d) => d.name.toLowerCase().contains(q)).toList();
+  List<Destination> _filterDestinations(
+    List<Destination> all,
+    List<String> preferredIds,
+  ) {
+    var result = all.toList();
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((d) => d.name.toLowerCase().contains(q)).toList();
+    }
+    if (preferredIds.isNotEmpty && _searchQuery.isEmpty) {
+      // Sort preferred destinations to the top
+      result.sort((a, b) {
+        final aPreferred = preferredIds.contains(a.id) ? 0 : 1;
+        final bPreferred = preferredIds.contains(b.id) ? 0 : 1;
+        if (aPreferred != bPreferred) return aPreferred.compareTo(bPreferred);
+        return a.name.compareTo(b.name);
+      });
+    }
+    return result;
   }
 
   // ─────────────────────────────────────────────────────────────────────
   // Phase 1-4 — Wizard (integrated from AutoPlanSheet)
   // ─────────────────────────────────────────────────────────────────────
 
-  Widget _buildWizard() {
+  Widget _buildWizard(AsyncValue<AiBackendHealth?> aiHealthAsync) {
     final planState = ref.watch(autoPlanProvider);
     final dest = _selectedDestination!;
 
@@ -341,6 +473,14 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _buildAiStatusBadge(aiHealthAsync),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
 
         // Step indicator
         if (_step < 3) _buildStepIndicator(),
@@ -349,6 +489,7 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
         // Content
         Expanded(
           child: SingleChildScrollView(
+            controller: _step == 3 ? _previewScrollController : null,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             child: _step == 0
                 ? _buildStep1Basic()
@@ -356,7 +497,7 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 ? _buildStep2Prefs()
                 : _step == 2
                 ? _buildStep3Advanced()
-                : _buildStep4Preview(planState),
+                : _buildStep4Preview(planState, aiHealthAsync),
           ),
         ),
 
@@ -998,6 +1139,12 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           value: _diversify,
           onChanged: (v) => setState(() => _diversify = v),
         ),
+        _toggleTile(
+          title: 'Ưu tiên địa điểm đã lưu',
+          subtitle: 'Đưa địa điểm đã bookmark vào lịch trình trước',
+          value: _usePinnedLocations,
+          onChanged: (v) => setState(() => _usePinnedLocations = v),
+        ),
         const SizedBox(height: AppSpacing.md),
       ],
     );
@@ -1054,7 +1201,10 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
   // Step 4 — Generate & Preview
   // ─────────────────────────────────────────────────────────────────────
 
-  Widget _buildStep4Preview(AutoPlanState planState) {
+  Widget _buildStep4Preview(
+    AutoPlanState planState,
+    AsyncValue<AiBackendHealth?> aiHealthAsync,
+  ) {
     if (planState.isGenerating) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 40),
@@ -1143,22 +1293,14 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (planState.isEnriching)
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.3),
-              ),
-            ),
+        if (planState.isEnriching || _isTyping)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
                 SizedBox(
-                  width: 16,
-                  height: 16,
+                  width: 14,
+                  height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
@@ -1166,29 +1308,34 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'AI đang viết lời dẫn hấp dẫn cho lịch trình...',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
+                const SizedBox(width: 8),
+                Text(
+                  _isTyping ? 'AI đang viết...' : 'AI đang suy nghĩ...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primary.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
+        if (_shouldShowAiFallbackBanner(planState, aiHealthAsync)) ...[
+          _buildAiFallbackBanner(planState, aiHealthAsync),
+          const SizedBox(height: 16),
+        ],
         _buildPreviewContent(result),
       ],
     );
   }
 
   Widget _buildPreviewContent(AutoPlanResult result) {
+    _scheduleTipPrefetch(result);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildPlanFitCard(result.request),
+        const SizedBox(height: 16),
         // ── Gradient Hero Banner ──
         Container(
           width: double.infinity,
@@ -1211,29 +1358,8 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (result.tripTitle != null)
-                Text(
-                  result.tripTitle!,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.3,
-                  ),
-                ),
-              if (result.tripDescription != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  result.tripDescription!,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.85),
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+              _buildStreamingTitle(result),
+              _buildStreamingDescription(result),
               const SizedBox(height: 16),
               // Stats row
               Row(
@@ -1265,6 +1391,433 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
         const SizedBox(height: AppSpacing.md),
       ],
     );
+  }
+
+  Widget _buildStreamingTitle(AutoPlanResult result) {
+    final title = result.tripTitle;
+    if (title == null || title.isEmpty) return const SizedBox.shrink();
+
+    // Trigger typewriter when new enriched text arrives
+    if (title != _lastEnrichedTitle) {
+      _lastEnrichedTitle = title;
+      final desc = result.tripDescription ?? '';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startTypewriter(title, desc);
+      });
+    }
+
+    final displayText = _isTyping ? _animatedTitle : title;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            displayText,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              height: 1.3,
+            ),
+          ),
+        ),
+        if (_isTyping && _animatedDescription.isEmpty)
+          _blinkingCursor(Colors.white),
+      ],
+    );
+  }
+
+  Widget _buildStreamingDescription(AutoPlanResult result) {
+    final desc = result.tripDescription;
+    if (desc == null || desc.isEmpty) return const SizedBox.shrink();
+
+    final displayText = _isTyping ? _animatedDescription : desc;
+    if (displayText.isEmpty && !_isTyping) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: MarkdownBody(
+          data: desc,
+          styleSheet: MarkdownStyleSheet(
+            p: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.85),
+              height: 1.4,
+            ),
+            strong: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          shrinkWrap: true,
+        ),
+      );
+    }
+
+    if (displayText.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: _isTyping
+                ? Text(
+                    displayText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.85),
+                      height: 1.4,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : MarkdownBody(
+                    data: displayText,
+                    styleSheet: MarkdownStyleSheet(
+                      p: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        height: 1.4,
+                      ),
+                      strong: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    shrinkWrap: true,
+                  ),
+          ),
+          if (_isTyping && _animatedDescription.isNotEmpty)
+            _blinkingCursor(Colors.white.withValues(alpha: 0.85)),
+        ],
+      ),
+    );
+  }
+
+  /// Remove citation references like [1], [2] from AI text
+  String _cleanMarkdownRefs(String text) {
+    return text.replaceAll(RegExp(r'\[\d+\]'), '').trim();
+  }
+
+  /// Consistent markdown style for AI tip cards
+  MarkdownStyleSheet _aiTipMarkdownStyle() {
+    return MarkdownStyleSheet(
+      p: const TextStyle(
+        fontSize: 13,
+        color: Color(0xFF334155),
+        height: 1.5,
+      ),
+      strong: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF1E293B),
+      ),
+      em: const TextStyle(
+        fontSize: 13,
+        fontStyle: FontStyle.italic,
+        color: Color(0xFF475569),
+      ),
+      listBullet: const TextStyle(
+        fontSize: 13,
+        color: Color(0xFF334155),
+      ),
+      blockSpacing: 8,
+    );
+  }
+
+  Widget _blinkingCursor(Color color) {
+    return _BlinkingCursor(color: color);
+  }
+
+  Widget _buildAiStatusCard(
+    AsyncValue<AiBackendHealth?> aiHealthAsync,
+    AutoPlanState planState,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          _buildAiStatusBadge(aiHealthAsync),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              planState.isEnriching
+                  ? 'AI đang viết thêm tiêu đề, theme từng ngày và mô tả từng điểm.'
+                  : 'Hệ thống hiển thị rõ phần AI và phần thuật toán để bạn demo dễ hơn.',
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAiStatusBadge(AsyncValue<AiBackendHealth?> aiHealthAsync) {
+    return aiHealthAsync.when(
+      loading: () => _statusPill(
+        icon: Icons.autorenew_rounded,
+        text: 'AI đang kiểm tra',
+        background: const Color(0xFFE0E7FF),
+        foreground: const Color(0xFF4338CA),
+      ),
+      error: (_, __) => _statusPill(
+        icon: Icons.wifi_off_rounded,
+        text: 'AI offline • chế độ thuật toán',
+        background: const Color(0xFFFEF3C7),
+        foreground: const Color(0xFF92400E),
+      ),
+      data: (health) {
+        if (health == null) {
+          return _statusPill(
+            icon: Icons.auto_awesome_outlined,
+            text: 'AI backend',
+            background: const Color(0xFFEDE9FE),
+            foreground: const Color(0xFF6D28D9),
+          );
+        }
+
+        if (health.isOnline) {
+          return _statusPill(
+            icon: Icons.bolt_rounded,
+            text: 'AI online • sẵn sàng',
+            background: const Color(0xFFDCFCE7),
+            foreground: const Color(0xFF166534),
+          );
+        }
+
+        return _statusPill(
+          icon: Icons.wifi_off_rounded,
+          text: 'AI offline • chế độ thuật toán',
+          background: const Color(0xFFFEF3C7),
+          foreground: const Color(0xFF92400E),
+        );
+      },
+    );
+  }
+
+  Widget _statusPill({
+    required IconData icon,
+    required String text,
+    required Color background,
+    required Color foreground,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: foreground),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: foreground,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _shouldShowAiFallbackBanner(
+    AutoPlanState planState,
+    AsyncValue<AiBackendHealth?> aiHealthAsync,
+  ) {
+    final health = aiHealthAsync.asData?.value;
+    return planState.usedAlgorithmFallback ||
+        _didFallbackOnTip ||
+        (health != null && !health.isOnline);
+  }
+
+  Widget _buildAiFallbackBanner(
+    AutoPlanState planState,
+    AsyncValue<AiBackendHealth?> aiHealthAsync,
+  ) {
+    final health = aiHealthAsync.asData?.value;
+    final message =
+        planState.aiMessage ??
+        _tipFallbackMessage ??
+        health?.message ??
+        'Lịch trình vẫn được tạo bằng thuật toán. Phần narrative AI đang tạm thời chưa sẵn sàng.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF59E0B)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFB45309)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                color: Color(0xFF92400E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlanFitCard(AutoPlanRequest request) {
+    final focusLabels = <String>[
+      request.pace.label,
+      request.budgetLevel.label,
+      request.groupType.label,
+      if (request.preferredCategoryIds.isNotEmpty)
+        '${request.preferredCategoryIds.length} nhóm sở thích',
+      if (request.preferredTags.isNotEmpty)
+        '${request.preferredTags.length} tag ưu tiên',
+      request.useBehaviorSignals
+          ? 'Có hành vi gần đây'
+          : 'Chỉ dùng tùy chọn thủ công',
+    ];
+
+    final summary =
+        'Lịch này ưu tiên nhịp ${request.pace.label.toLowerCase()}, '
+        'mức chi tiêu ${request.budgetLevel.label.toLowerCase()} '
+        'và kiểu đi ${request.groupType.label.toLowerCase()}. '
+        '${request.useBehaviorSignals ? 'Hệ thống có tham chiếu hành vi gần đây để cá nhân hóa.' : 'Hệ thống đang giải thích dựa trên tùy chọn bạn vừa chọn.'}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.psychology_alt_rounded, color: Color(0xFF7C3AED)),
+              SizedBox(width: 8),
+              Text(
+                'Vì sao lịch này hợp với bạn',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            summary,
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: focusLabels
+                .map(
+                  (label) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _scheduleTipPrefetch(AutoPlanResult result) {
+    final signature = _prefetchSignature(result);
+    if (_lastPrefetchSignature == signature) {
+      return;
+    }
+    _lastPrefetchSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final day in result.days) {
+        for (final entry in day.stops.asMap().entries) {
+          final stopKey = '${day.dayIndex}_${entry.key}';
+          final stop = entry.value;
+          final hasInlineAi =
+              stop.aiDescription?.trim().isNotEmpty == true ||
+              _lazyTips.containsKey(stopKey) ||
+              _loadingTips.contains(stopKey);
+          if (!hasInlineAi) {
+            _generateLazyTip(stopKey, stop);
+          }
+        }
+      }
+    });
+  }
+
+  String _prefetchSignature(AutoPlanResult result) {
+    return [
+      result.request.destinationId,
+      result.request.numberOfDays,
+      result.totalStops,
+      result.tripTitle ?? '',
+      result.tripDescription ?? '',
+    ].join('|');
   }
 
   Widget _heroBadge(IconData icon, String text) {
@@ -1364,6 +1917,27 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             ],
           ),
         ),
+        if (day.dayDescription != null &&
+            day.dayDescription!.trim().isNotEmpty) ...[
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Text(
+              day.dayDescription!,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: Color(0xFF475569),
+              ),
+            ),
+          ),
+        ],
 
         // Stop cards with travel bubbles between them
         ...day.stops.asMap().entries.expand((e) {
@@ -1430,6 +2004,10 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
           // Stop card — expandable
           final stopKey = '${day.dayIndex}_${e.key}';
           final isExpanded = _expandedStops.contains(stopKey);
+          final previewSummary =
+              stop.aiDescription?.trim().isNotEmpty == true
+              ? stop.aiDescription!.trim()
+              : _lazyTips[stopKey];
           widgets.add(
             GestureDetector(
               onTap: () {
@@ -1519,6 +2097,46 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                                   ),
                                 ],
                               ),
+                              if (previewSummary != null &&
+                                  previewSummary.trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  previewSummary,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    height: 1.4,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ] else if (_loadingTips.contains(stopKey)) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              AppColors.primary,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'AI đang bổ sung mô tả...',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.primary,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -1577,22 +2195,16 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                             const SizedBox(height: 8),
                             // AI description or loading
                             if (stop.aiDescription != null)
-                              Text(
-                                stop.aiDescription!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF334155),
-                                  height: 1.5,
-                                ),
+                              MarkdownBody(
+                                data: _cleanMarkdownRefs(stop.aiDescription!),
+                                styleSheet: _aiTipMarkdownStyle(),
+                                shrinkWrap: true,
                               )
                             else if (_lazyTips.containsKey(stopKey))
-                              Text(
-                                _lazyTips[stopKey]!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF334155),
-                                  height: 1.5,
-                                ),
+                              MarkdownBody(
+                                data: _cleanMarkdownRefs(_lazyTips[stopKey]!),
+                                styleSheet: _aiTipMarkdownStyle(),
+                                shrinkWrap: true,
                               )
                             else if (_loadingTips.contains(stopKey))
                               Row(
@@ -1725,19 +2337,19 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
             child: OutlinedButton(
               onPressed: () => setState(() => _step--),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 side: const BorderSide(color: Color(0xFFE2E8F0)),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: const Text(
                 'Quay lại',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ),
-        if (_step > 0) const SizedBox(width: 12),
+        if (_step > 0) const SizedBox(width: 10),
         Expanded(
           flex: 2,
           child: Container(
@@ -1749,12 +2361,12 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                   Color(0xFF6D28D9),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
@@ -1770,15 +2382,15 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: Text(
                 _step < 2 ? 'Tiếp tục' : '✨ Tạo lịch trình',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1859,61 +2471,86 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
               gradient: const LinearGradient(
                 colors: [Color(0xFF10B981), Color(0xFF059669)],
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.success.withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+                  color: AppColors.success.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
             child: ElevatedButton(
-              onPressed: planState.isEnriching ? null : _onApply,
+              onPressed: (planState.isEnriching || planState.result == null || _loadingTips.isNotEmpty)
+                  ? null
+                  : _onApply,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 11),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                '✅ Áp dụng lịch trình',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
+              child: _loadingTips.isNotEmpty
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Đang gen tips... (còn ${_loadingTips.length})',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    )
+                  : const Text(
+                      '✅ Áp dụng lịch trình',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
               child: OutlinedButton(
                 onPressed: () => setState(() => _step = 2),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text('Sửa cài đặt'),
+                child: const Text(
+                  'Sửa cài đặt',
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton(
                 onPressed: _onGenerate,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text('🔄 Tạo lại'),
+                child: const Text(
+                  '🔄 Tạo lại',
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
             ),
           ],
@@ -1928,6 +2565,20 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
   void _onGenerate() {
     final dest = _selectedDestination!;
+    setState(() {
+      _expandedStops.clear();
+      _lazyTips.clear();
+      _loadingTips.clear();
+      _didFallbackOnTip = false;
+      _tipFallbackMessage = null;
+      _lastPrefetchSignature = null;
+      // Reset animation state
+      _lastEnrichedTitle = null;
+      _animatedTitle = '';
+      _animatedDescription = '';
+      _isTyping = false;
+    });
+    final pinnedIds = ref.read(savedLocationIdsProvider).value ?? [];
     final request = AutoPlanRequest(
       destinationId: dest.id,
       destinationName: dest.name,
@@ -1939,6 +2590,8 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
       groupType: _group,
       useBehaviorSignals: _useBehavior,
       diversify: _diversify,
+      pinnedLocationIds: pinnedIds,
+      usePinnedLocations: _usePinnedLocations,
     );
     ref.read(autoPlanProvider.notifier).generate(request);
     setState(() => _step = 3);
@@ -1951,14 +2604,38 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
     final dest = _selectedDestination!;
 
+    // Merge lazy-loaded tips into stop aiDescription before converting
+    final mergedResult = result.copyWith(
+      days: result.days.map((day) {
+        return day.copyWith(
+          stops: day.stops.asMap().entries.map((e) {
+            final stop = e.value;
+            final stopKey = '${day.dayIndex}_${e.key}';
+            final mergedDesc = stop.aiDescription ?? _lazyTips[stopKey];
+            return mergedDesc != null ? stop.copyWith(aiDescription: mergedDesc) : stop;
+          }).toList(),
+        );
+      }).toList(),
+    );
+
     // Set trip days into pending state with AI-generated title
     ref
         .read(pendingTripProvider.notifier)
         .setFromTripDays(
-          days: result.toTripDays(),
+          days: mergedResult.toTripDays(),
           destinationId: dest.id,
           destinationName: dest.name,
           tripName: result.tripTitle,
+          tripDescription: result.tripDescription,
+          aiEnrichedStopCount: mergedResult.days.fold<int>(
+            0,
+            (total, day) =>
+                total +
+                day.stops.where((stop) =>
+                    stop.aiDescription != null && stop.aiDescription!.trim().isNotEmpty
+                ).length,
+          ),
+          isAiGenerated: true,
           startDate: _startDate,
         );
 
@@ -1966,7 +2643,7 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     ref.read(autoPlanProvider.notifier).clear();
 
     // Navigate to Visual Planner
-    context.pushNamed(AppRoutes.visualPlanner);
+    context.pushReplacementNamed(AppRoutes.visualPlanner);
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -2042,9 +2719,12 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
+          _didFallbackOnTip = true;
+          _tipFallbackMessage =
+              'AI tip cho từng điểm đang tạm thời không phản hồi. Hệ thống hiện mô tả dự phòng để bạn tiếp tục demo.';
           _lazyTips[stopKey] =
               'Hay danh ${stop.durationMin} phut kham pha ${stop.location.name}. '
-              'Day la diem ${stop.location.category} duoc danh gia cao trong khu vuc.';
+              'Đây là điểm ${stop.location.category} được đánh giá cao trong khu vực.';
           _loadingTips.remove(stopKey);
         });
       }
@@ -2093,51 +2773,171 @@ class _AiPlanScreenState extends ConsumerState<AiPlanScreen> {
 
 class _DestinationTile extends StatelessWidget {
   final Destination destination;
+  final bool isPreferred;
   final VoidCallback onTap;
 
-  const _DestinationTile({required this.destination, required this.onTap});
+  const _DestinationTile({
+    required this.destination,
+    required this.onTap,
+    this.isPreferred = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final emoji = DestinationEmojiHelper.getEmoji(destination.id);
-
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          border: Border.all(
+            color: isPreferred
+                ? const Color(0xFF8B5CF6).withValues(alpha: 0.3)
+                : const Color(0xFFF1F5F9),
+            width: isPreferred ? 1.5 : 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
-              blurRadius: 16,
+              color: isPreferred
+                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.12)
+                  : AppColors.primary.withValues(alpha: 0.06),
+              blurRadius: isPreferred ? 20 : 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.primary.withValues(alpha: 0.12),
-                    AppColors.primary.withValues(alpha: 0.04),
+            // ── Hero Image ──
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(19),
+                topRight: Radius.circular(19),
+              ),
+              child: SizedBox(
+                height: 120,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    destination.heroImage.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: destination.heroImage,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => Container(
+                              color: const Color(0xFFEDE9FE),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.landscape_rounded,
+                                  size: 32,
+                                  color: Color(0xFF8B5CF6),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (_, __, ___) => Container(
+                              color: const Color(0xFFEDE9FE),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.image_not_supported_rounded,
+                                  size: 32,
+                                  color: Color(0xFF8B5CF6),
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: const Color(0xFFEDE9FE),
+                            child: const Center(
+                              child: Icon(
+                                Icons.landscape_rounded,
+                                size: 32,
+                                color: Color(0xFF8B5CF6),
+                              ),
+                            ),
+                          ),
+                    // Gradient overlay
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 48,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.3),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Preferred badge
+                    if (isPreferred)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.auto_awesome,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Phù hợp với bạn',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    // Arrow icon
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Center(
-                child: Text(emoji, style: const TextStyle(fontSize: 28)),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
+            // ── Info ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2149,33 +2949,88 @@ class _DestinationTile extends StatelessWidget {
                       color: Color(0xFF1E293B),
                     ),
                   ),
-                  if (destination.description.isNotEmpty)
+                  if (destination.description.isNotEmpty) ...[
+                    const SizedBox(height: 2),
                     Text(
                       destination.description,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         color: Color(0xFF94A3B8),
+                        height: 1.3,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                  ],
+                  if (destination.locationCount > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.place_rounded,
+                          size: 14,
+                          color: const Color(0xFF8B5CF6).withValues(alpha: 0.7),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${destination.locationCount} địa điểm',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: const Color(0xFF8B5CF6).withValues(alpha: 0.7),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: AppColors.primary,
-              ),
-            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Blinking cursor widget with proper repeating animation
+class _BlinkingCursor extends StatefulWidget {
+  const _BlinkingCursor({required this.color});
+  final Color color;
+
+  @override
+  State<_BlinkingCursor> createState() => _BlinkingCursorState();
+}
+
+class _BlinkingCursorState extends State<_BlinkingCursor>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 530),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _controller,
+      child: Text(
+        '▎',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w300,
+          color: widget.color,
         ),
       ),
     );

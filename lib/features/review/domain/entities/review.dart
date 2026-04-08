@@ -1,3 +1,6 @@
+import 'review_image_candidate.dart';
+import 'review_source_reference.dart';
+
 /// Entity representing a full review for the Review Detail screen.
 ///
 /// This is an immutable value object containing complete review information.
@@ -57,6 +60,34 @@ class Review {
   /// Content status: 'published' (visible to users) or 'draft_ai' (pending review)
   final String status;
 
+  /// AI summary used in the admin review pipeline before full preview exists.
+  final String? aiSummary;
+
+  /// AI-selected angle / thesis for the article.
+  final String? aiAngle;
+
+  /// Outline items used for draft review approval.
+  final List<String> aiOutline;
+
+  /// Source references gathered during AI research.
+  final List<ReviewSourceReference> sourceReferences;
+
+  /// Candidate hero images gathered from public web sources.
+  final List<ReviewImageCandidate> heroImageCandidates;
+
+  /// Attribution/source URL for the chosen hero image.
+  final String? heroImageSourceUrl;
+
+  /// Original admin prompt used for this article generation.
+  final String? aiPrompt;
+
+  /// Provider chain used to create or expand the article.
+  final String? aiProvider;
+
+  bool get isPublished => status == 'published';
+  bool get isAiDraft => status == 'draft_ai';
+  bool get isAiPreview => status == 'preview_ai';
+
   const Review({
     required this.id,
     required this.heroImage,
@@ -75,6 +106,14 @@ class Review {
     this.category,
     this.slug,
     this.status = 'published',
+    this.aiSummary,
+    this.aiAngle,
+    this.aiOutline = const [],
+    this.sourceReferences = const [],
+    this.heroImageCandidates = const [],
+    this.heroImageSourceUrl,
+    this.aiPrompt,
+    this.aiProvider,
   });
 
   /// Creates a copy with modified fields (immutability pattern)
@@ -96,6 +135,14 @@ class Review {
     String? category,
     String? slug,
     String? status,
+    String? aiSummary,
+    String? aiAngle,
+    List<String>? aiOutline,
+    List<ReviewSourceReference>? sourceReferences,
+    List<ReviewImageCandidate>? heroImageCandidates,
+    String? heroImageSourceUrl,
+    String? aiPrompt,
+    String? aiProvider,
   }) {
     return Review(
       id: id ?? this.id,
@@ -115,6 +162,14 @@ class Review {
       category: category ?? this.category,
       slug: slug ?? this.slug,
       status: status ?? this.status,
+      aiSummary: aiSummary ?? this.aiSummary,
+      aiAngle: aiAngle ?? this.aiAngle,
+      aiOutline: aiOutline ?? this.aiOutline,
+      sourceReferences: sourceReferences ?? this.sourceReferences,
+      heroImageCandidates: heroImageCandidates ?? this.heroImageCandidates,
+      heroImageSourceUrl: heroImageSourceUrl ?? this.heroImageSourceUrl,
+      aiPrompt: aiPrompt ?? this.aiPrompt,
+      aiProvider: aiProvider ?? this.aiProvider,
     );
   }
 
@@ -163,6 +218,62 @@ class Review {
 
   /// Create from JSON (Firestore format)
   factory Review.fromJson(Map<String, dynamic> json) {
+    List<ReviewSourceReference> parseReferences() {
+      final raw = json['sourceReferences'];
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map(
+              (item) => ReviewSourceReference.fromJson(
+                item.map((key, value) => MapEntry(key.toString(), value)),
+              ),
+            )
+            .where((item) => item.url.isNotEmpty)
+            .toList();
+      }
+
+      final citations = json['citations'];
+      if (citations is List) {
+        return citations
+            .whereType<String>()
+            .map((url) => ReviewSourceReference(title: url, url: url))
+            .toList();
+      }
+
+      final searchResults = json['search_results'];
+      if (searchResults is List) {
+        return searchResults
+            .whereType<Map>()
+            .map(
+              (item) => ReviewSourceReference.fromJson({
+                'title': item['title'],
+                'url': item['url'],
+                'date': item['date'],
+                'domain': item['domain'],
+              }),
+            )
+            .where((item) => item.url.isNotEmpty)
+            .toList();
+      }
+
+      return const [];
+    }
+
+    List<ReviewImageCandidate> parseImageCandidates() {
+      final raw = json['heroImageCandidates'] ?? json['images'];
+      if (raw is! List) return const [];
+
+      return raw
+          .whereType<Map>()
+          .map(
+            (item) => ReviewImageCandidate.fromJson(
+              item.map((key, value) => MapEntry(key.toString(), value)),
+            ),
+          )
+          .where((item) => item.imageUrl.isNotEmpty)
+          .toList();
+    }
+
     return Review(
       id: json['id'] as String,
       heroImage: json['heroImage'] as String,
@@ -187,6 +298,16 @@ class Review {
       category: json['category'] as String?,
       slug: json['slug'] as String?,
       status: json['status'] as String? ?? 'published',
+      aiSummary: json['aiSummary'] as String?,
+      aiAngle: json['aiAngle'] as String?,
+      aiOutline:
+          (json['aiOutline'] as List<dynamic>?)?.whereType<String>().toList() ??
+          const [],
+      sourceReferences: parseReferences(),
+      heroImageCandidates: parseImageCandidates(),
+      heroImageSourceUrl: json['heroImageSourceUrl'] as String?,
+      aiPrompt: json['aiPrompt'] as String?,
+      aiProvider: json['aiProvider'] as String?,
     );
   }
 
@@ -210,6 +331,18 @@ class Review {
       'category': category,
       'slug': slug,
       'status': status,
+      'aiSummary': aiSummary,
+      'aiAngle': aiAngle,
+      'aiOutline': aiOutline,
+      'sourceReferences': sourceReferences
+          .map((item) => item.toJson())
+          .toList(),
+      'heroImageCandidates': heroImageCandidates
+          .map((item) => item.toJson())
+          .toList(),
+      'heroImageSourceUrl': heroImageSourceUrl,
+      'aiPrompt': aiPrompt,
+      'aiProvider': aiProvider,
     };
   }
 
@@ -232,6 +365,18 @@ class Review {
       'category': category,
       'slug': slug,
       'status': status,
+      'aiSummary': aiSummary,
+      'aiAngle': aiAngle,
+      'aiOutline': aiOutline,
+      'sourceReferences': sourceReferences
+          .map((item) => item.toJson())
+          .toList(),
+      'heroImageCandidates': heroImageCandidates
+          .map((item) => item.toJson())
+          .toList(),
+      'heroImageSourceUrl': heroImageSourceUrl,
+      'aiPrompt': aiPrompt,
+      'aiProvider': aiProvider,
     };
   }
 

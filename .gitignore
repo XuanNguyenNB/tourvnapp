@@ -83,6 +83,8 @@ test_gemini_http.dart
 get_models.dart
 clean_tests.py
 fix_tests.py
+.codex_tmp_ppt_export/
+Slide*.PNG
 
 # Node modules (for Firebase functions)
 functions/node_modules/

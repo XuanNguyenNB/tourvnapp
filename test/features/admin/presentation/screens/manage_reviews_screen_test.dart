@@ -87,6 +87,44 @@ class FakeReviewRepository implements ReviewRepository {
   }
 
   @override
+  Future<({List<Review> items, DocumentSnapshot? lastDoc})> fetchAdminReviews({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String? destinationId,
+    String? category,
+    String? locationId,
+    String search = '',
+  }) async {
+    var filtered = _reviews.toList();
+    if (destinationId != null && destinationId.isNotEmpty) {
+      filtered = filtered
+          .where((review) => review.destinationId == destinationId)
+          .toList();
+    }
+    if (category != null && category.isNotEmpty) {
+      filtered = filtered
+          .where((review) => review.category == category)
+          .toList();
+    }
+    if (locationId != null && locationId.isNotEmpty) {
+      filtered = filtered
+          .where((review) => review.relatedLocationIds.contains(locationId))
+          .toList();
+    }
+    if (search.trim().isNotEmpty) {
+      final normalized = search.trim().toLowerCase();
+      filtered = filtered
+          .where(
+            (review) =>
+                review.title.toLowerCase().contains(normalized) ||
+                review.authorName.toLowerCase().contains(normalized),
+          )
+          .toList();
+    }
+    return (items: filtered.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -251,7 +289,7 @@ void main() {
       ],
       child: MaterialApp(
         home: MediaQuery(
-          data: const MediaQueryData(size: Size(1600, 1200)),
+          data: const MediaQueryData(size: Size(1800, 2200)),
           child: const ManageReviewsScreen(),
         ),
       ),
@@ -273,20 +311,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.search), findsOneWidget);
-    expect(
-      find.widgetWithText(TextField, 'Tìm theo tiêu đề, tác giả...'),
-      findsOneWidget,
-    );
+    expect(find.byType(TextField), findsOneWidget);
   });
 
   testWidgets('Search should filter reviews by title', (tester) async {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Tìm theo tiêu đề, tác giả...'),
-      'cà phê',
-    );
+    await tester.enterText(find.byType(TextField), 'cà phê');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
@@ -299,10 +331,7 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Tìm theo tiêu đề, tác giả...'),
-      'Mai Anh',
-    );
+    await tester.enterText(find.byType(TextField), 'Mai Anh');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
@@ -336,9 +365,9 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(FilterChip, '🍜 Ăn uống'), findsOneWidget);
-    expect(find.widgetWithText(FilterChip, '📸 Điểm đến'), findsOneWidget);
-    expect(find.widgetWithText(FilterChip, '🏨 Lưu trú'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'Ăn uống'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'Điểm đến'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'Lưu trú'), findsOneWidget);
   });
 
   testWidgets('Should show checkboxes for batch selection', (tester) async {
@@ -419,7 +448,7 @@ void main() {
     await tester.tap(find.byTooltip('Xóa').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Xóa Bài viết?'), findsOneWidget);
+    expect(find.text('Xóa bài viết?'), findsOneWidget);
   });
 
   testWidgets('Clear filters button should reset all filters', (tester) async {

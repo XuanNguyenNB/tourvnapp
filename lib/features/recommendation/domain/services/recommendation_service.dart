@@ -84,6 +84,7 @@ class RecommendationService {
             locationId: s.location.id,
             score: s.score,
             reasons: s.reasons,
+            scoreBreakdown: s.breakdown,
           ),
         )
         .toList();
@@ -103,6 +104,14 @@ class RecommendationService {
   }) {
     final reasons = <String>[];
     double score = 0;
+    double categoryContribution = 0;
+    double tagContribution = 0;
+    double qualityContribution = 0;
+    double behaviorContribution = 0;
+    double noveltyContribution = 0;
+    double contextContribution = 0;
+    double proximityContribution = 0;
+    double boostContribution = 0;
 
     // Dynamic weights: boost quality + proximity when profile is missing
     final hasProfile = profile != null && profile.hasPreferences;
@@ -119,32 +128,38 @@ class RecommendationService {
     if (catMatch > 0) {
       reasons.add('Hợp sở thích ${_categoryLabel(loc.category)}');
     }
-    score += wCategory * catMatch;
+    categoryContribution = wCategory * catMatch;
+    score += categoryContribution;
 
     // 2. Tag match (Jaccard similarity)
     final tagMatch = _tagMatchScore(loc, profile);
     if (tagMatch > 0.3) reasons.add('Phù hợp phong cách');
-    score += wTags * tagMatch;
+    tagContribution = wTags * tagMatch;
+    score += tagContribution;
 
     // 3. Quality (rating + popularity)
     final quality = _qualityScore(loc);
     if (quality > 0.7) reasons.add('Được đánh giá cao');
-    score += wQuality * quality;
+    qualityContribution = wQuality * quality;
+    score += qualityContribution;
 
     // 4. Behavior affinity (from interaction history)
     final behavior = _behaviorScore(loc, categoryInterests, tagInterests);
     if (behavior > 0.3) reasons.add('Dựa trên hoạt động gần đây');
-    score += wBehavior * behavior;
+    behaviorContribution = wBehavior * behavior;
+    score += behaviorContribution;
 
     // 5. Novelty (locations not yet interacted)
     final novelty = interactedLocationIds.contains(loc.id) ? 0.0 : 1.0;
     if (novelty > 0) reasons.add('Chưa khám phá');
-    score += wNovelty * novelty;
+    noveltyContribution = wNovelty * novelty;
+    score += noveltyContribution;
 
     // 6. Context boost (group type, budget match)
     final context = _contextScore(loc, profile);
     if (context > 0.3) reasons.add('Phù hợp nhóm đi');
-    score += wContext * context;
+    contextContribution = wContext * context;
+    score += contextContribution;
 
     // 7. Proximity scoring (GPS-based)
     final proximity = _proximityScore(loc, userLat, userLng);
@@ -157,10 +172,12 @@ class RecommendationService {
       );
       reasons.add('📍 Cách ${_formatDist(dist)}');
     }
-    score += wProximity * proximity;
+    proximityContribution = wProximity * proximity;
+    score += proximityContribution;
 
     // 8. Category boost (e.g. check-in → places)
     if (boostCategory != null && loc.category == boostCategory) {
+      boostContribution += 0.30;
       score += 0.30;
       reasons.add('📸 Điểm check-in hot');
     }
@@ -169,6 +186,7 @@ class RecommendationService {
     if (profile != null &&
         profile.preferredDestinationIds.isNotEmpty &&
         profile.preferredDestinationIds.contains(loc.destinationId)) {
+      boostContribution += 0.25;
       score += 0.25;
       reasons.add('🗺️ Nơi bạn muốn đến');
     }
@@ -176,6 +194,7 @@ class RecommendationService {
     // Fallback: if no profile, add popularity score boost
     if (!hasProfile) {
       final popScore = (loc.saveCount > 50 || loc.viewCount > 200) ? 0.15 : 0.0;
+      boostContribution += popScore;
       score += popScore;
       if (popScore > 0) reasons.add('Đang thịnh hành');
     }
@@ -184,6 +203,16 @@ class RecommendationService {
       location: loc,
       score: score,
       reasons: reasons.take(3).toList(), // Max 3 reasons for UI
+      breakdown: RecommendationScoreBreakdown(
+        category: categoryContribution,
+        tags: tagContribution,
+        quality: qualityContribution,
+        behavior: behaviorContribution,
+        novelty: noveltyContribution,
+        context: contextContribution,
+        proximity: proximityContribution,
+        boost: boostContribution,
+      ),
     );
   }
 
@@ -380,10 +409,12 @@ class _ScoredLocation {
   final Location location;
   final double score;
   final List<String> reasons;
+  final RecommendationScoreBreakdown breakdown;
 
   const _ScoredLocation({
     required this.location,
     required this.score,
     required this.reasons,
+    required this.breakdown,
   });
 }

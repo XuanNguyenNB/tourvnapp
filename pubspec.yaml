@@ -39,11 +39,10 @@ dependencies:
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
-  cloud_functions: ^6.0.3
-  firebase_storage: ^13.0.6
   google_fonts: ^6.2.1
   shimmer: ^3.0.0
   go_router: ^14.8.0
+  http: ^1.2.2
   
   # State Management - Riverpod 3.2.0 (MANDATORY per architecture)
   flutter_riverpod: ^3.2.0
@@ -76,6 +75,9 @@ dependencies:
   
   # Share Plus for sharing trip itineraries (Feature: Trip Sharing)
   share_plus: ^10.1.4
+  supabase_flutter: ^2.12.2
+  flutter_dotenv: ^6.0.0
+  flutter_markdown: ^0.7.7+1
 
 dev_dependencies:
   flutter_test:
@@ -105,6 +107,13 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/fonts/BeVietnamPro-Regular.ttf
+    - assets/fonts/BeVietnamPro-Medium.ttf
+    - assets/fonts/BeVietnamPro-SemiBold.ttf
+    - assets/fonts/BeVietnamPro-Bold.ttf
+    - assets/fonts/BeVietnamPro-ExtraBold.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

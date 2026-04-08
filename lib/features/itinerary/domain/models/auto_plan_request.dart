@@ -38,6 +38,12 @@ class AutoPlanRequest {
   /// Mặc định trip N ngày (N-1) đêm → ngày cuối về sớm.
   final bool endEarlyOnLastDay;
 
+  /// Location IDs that user has saved/bookmarked — prioritized in scheduling.
+  final List<String> pinnedLocationIds;
+
+  /// Whether to use pinned locations in planning.
+  final bool usePinnedLocations;
+
   const AutoPlanRequest({
     required this.destinationId,
     required this.destinationName,
@@ -52,6 +58,8 @@ class AutoPlanRequest {
     this.userLat,
     this.userLng,
     this.endEarlyOnLastDay = true,
+    this.pinnedLocationIds = const [],
+    this.usePinnedLocations = true,
   }) : assert(numberOfDays > 0 && numberOfDays <= 30);
 
   AutoPlanRequest copyWith({
@@ -68,6 +76,8 @@ class AutoPlanRequest {
     double? userLat,
     double? userLng,
     bool? endEarlyOnLastDay,
+    List<String>? pinnedLocationIds,
+    bool? usePinnedLocations,
   }) {
     return AutoPlanRequest(
       destinationId: destinationId ?? this.destinationId,
@@ -83,6 +93,8 @@ class AutoPlanRequest {
       userLat: userLat ?? this.userLat,
       userLng: userLng ?? this.userLng,
       endEarlyOnLastDay: endEarlyOnLastDay ?? this.endEarlyOnLastDay,
+      pinnedLocationIds: pinnedLocationIds ?? this.pinnedLocationIds,
+      usePinnedLocations: usePinnedLocations ?? this.usePinnedLocations,
     );
   }
 

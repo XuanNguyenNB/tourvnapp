@@ -13,7 +13,7 @@ final reviewByIdProvider = FutureProvider.autoDispose.family<Review, String>((
   reviewId,
 ) async {
   final repository = ref.watch(reviewRepositoryProvider);
-  return repository.getReviewById(reviewId);
+  return repository.getPublishedReviewById(reviewId);
 });
 
 /// Provider for fetching related locations for a review
@@ -50,5 +50,5 @@ final allReviewsProvider = FutureProvider.autoDispose<List<Review>>((
   ref,
 ) async {
   final repository = ref.watch(reviewRepositoryProvider);
-  return repository.getAllReviews();
+  return repository.getPublishedReviews();
 });

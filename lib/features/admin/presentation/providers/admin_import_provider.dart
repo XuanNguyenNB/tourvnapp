@@ -1,12 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../data/repositories/admin_dashboard_repository.dart';
 import '../../../destination/data/repositories/destination_repository.dart';
 import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';
 import '../../../review/data/repositories/review_repository.dart';
 import '../../../review/domain/entities/review.dart';
+import 'admin_stats_provider.dart';
 
 /// Parsed data from JSON file, ready for preview and import.
 class ParsedImportData {
@@ -80,11 +83,13 @@ class ImportError extends ImportState {
 class AdminImportNotifier extends Notifier<ImportState> {
   late final DestinationRepository _destRepo;
   late final ReviewRepository _reviewRepo;
+  late final AdminDashboardRepository _dashboardRepository;
 
   @override
   ImportState build() {
     _destRepo = ref.watch(destinationRepositoryProvider);
     _reviewRepo = ref.watch(reviewRepositoryProvider);
+    _dashboardRepository = ref.watch(adminDashboardRepositoryProvider);
     return const ImportIdle();
   }
 
@@ -166,7 +171,7 @@ class AdminImportNotifier extends Notifier<ImportState> {
               heroImage: map['heroImage'] as String? ?? '',
               title: map['title'] as String? ?? '',
               authorId: map['authorId'] as String? ?? 'admin',
-              authorName: map['authorName'] as String? ?? 'Admin',
+              authorName: map['authorName'] as String? ?? 'Quản trị viên',
               authorAvatar: map['authorAvatar'] as String? ?? '',
               fullText: map['fullText'] as String? ?? '',
               createdAt:
@@ -286,6 +291,28 @@ class AdminImportNotifier extends Notifier<ImportState> {
         errors: errors,
       ),
     );
+
+    final session = ref.read(appSessionProvider).asData?.value;
+    try {
+      await _dashboardRepository.logImportResult(
+        imported: imported,
+        skipped: skipped,
+        failed: failed,
+        total: total,
+        collections: [
+          if (data.destinations.isNotEmpty) 'destinations',
+          if (data.locations.isNotEmpty) 'locations',
+          if (data.reviews.isNotEmpty) 'reviews',
+        ],
+        errors: errors,
+        createdByUid: session?.user?.uid,
+        createdByName: session?.user?.displayName,
+        createdByEmail: session?.user?.email,
+      );
+    } catch (_) {
+      // Không chặn luồng import nếu ghi log thất bại.
+    }
+    ref.invalidate(adminStatsProvider);
   }
 
   /// Reset state to idle.

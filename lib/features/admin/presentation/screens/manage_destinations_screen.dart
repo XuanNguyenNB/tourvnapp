@@ -1,11 +1,15 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/admin_destination_provider.dart';
-import '../providers/admin_location_provider.dart';
-import '../providers/admin_review_provider.dart';
-import '../providers/paginated_admin_provider.dart';
+
 import '../../../destination/domain/entities/destination.dart';
+import '../providers/admin_destination_provider.dart';
+import '../providers/admin_stats_provider.dart';
+import '../widgets/admin_batch_action_bar.dart';
+import '../widgets/admin_confirm_dialog.dart';
+import '../widgets/admin_empty_state.dart';
+import '../widgets/admin_error_state.dart';
+import '../widgets/admin_page_header.dart';
+import '../widgets/admin_search_toolbar.dart';
 import '../widgets/destination_form_dialog.dart';
 
 class ManageDestinationsScreen extends ConsumerStatefulWidget {
@@ -18,11 +22,7 @@ class ManageDestinationsScreen extends ConsumerStatefulWidget {
 
 class _ManageDestinationsScreenState
     extends ConsumerState<ManageDestinationsScreen> {
-  final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  String _searchQuery = '';
-  final Set<String> _selectedIds = {};
-  Timer? _debounce;
 
   @override
   void initState() {
@@ -32,9 +32,7 @@ class _ManageDestinationsScreenState
 
   @override
   void dispose() {
-    _searchController.dispose();
     _scrollController.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
@@ -43,37 +41,6 @@ class _ManageDestinationsScreenState
         _scrollController.position.maxScrollExtent - 200) {
       ref.read(adminDestinationProvider.notifier).loadNextPage();
     }
-  }
-
-  void _onSearchChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      setState(() => _searchQuery = value.trim().toLowerCase());
-    });
-  }
-
-  List<Destination> _applyFilters(List<Destination> destinations) {
-    var result = destinations;
-
-    if (_searchQuery.isNotEmpty) {
-      result = result
-          .where((d) => d.name.toLowerCase().contains(_searchQuery))
-          .toList();
-    }
-
-    return result;
-  }
-
-  void _toggleSelectAll(List<Destination> filtered) {
-    setState(() {
-      if (_selectedIds.length == filtered.length) {
-        _selectedIds.clear();
-      } else {
-        _selectedIds
-          ..clear()
-          ..addAll(filtered.map((d) => d.id));
-      }
-    });
   }
 
   void _showDestinationForm(Destination? destination) {
@@ -85,493 +52,432 @@ class _ManageDestinationsScreenState
   }
 
   Future<void> _confirmDelete(Destination destination) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa Điểm đến?'),
-        content: Text(
-          'Bạn có chắc chắn muốn xóa ${destination.name}? Hành động này không thể hoàn tác.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
+    final confirmed = await AdminConfirmDialog.show(
+      context,
+      title: 'Xóa điểm đến?',
+      message:
+          'Bạn có chắc muốn xóa "${destination.name}"? Hành động này không thể hoàn tác.',
+      confirmLabel: 'Xóa',
     );
 
-    if (confirm == true) {
-      await ref
-          .read(adminDestinationProvider.notifier)
-          .deleteDestinationData(destination.id);
-      if (mounted) {
-        try {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Xóa điểm đến thành công!')),
-          );
-        } catch (_) {}
-      }
-    }
+    if (!confirmed || !mounted) return;
+
+    await ref
+        .read(adminDestinationProvider.notifier)
+        .deleteDestinationData(destination.id);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Đã xóa điểm đến')));
   }
 
-  Future<void> _confirmBatchDelete() async {
-    if (_selectedIds.isEmpty) return;
-    final count = _selectedIds.length;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa hàng loạt?'),
-        content: Text('Bạn có chắc muốn xóa $count điểm đến đã chọn?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
+  Future<void> _confirmBatchDelete(Set<String> ids) async {
+    if (ids.isEmpty) return;
+
+    final confirmed = await AdminConfirmDialog.show(
+      context,
+      title: 'Xóa hàng loạt?',
+      message: 'Bạn có chắc muốn xóa ${ids.length} điểm đến đã chọn?',
+      confirmLabel: 'Xóa',
     );
 
-    if (confirm == true) {
-      final ids = _selectedIds.toList();
-      setState(() => _selectedIds.clear());
-      await ref.read(adminDestinationProvider.notifier).deleteBatch(ids);
-      if (mounted) {
-        try {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Đã xóa $count điểm đến!')));
-        } catch (_) {}
-      }
-    }
+    if (!confirmed || !mounted) return;
+
+    final result = await ref
+        .read(adminDestinationProvider.notifier)
+        .deleteBatch(ids.toList());
+
+    if (!mounted) return;
+    ref.read(adminDestinationProvider.notifier).clearSelection();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.hasErrors
+              ? 'Đã xử lý ${result.processed} mục, có lỗi xảy ra'
+              : 'Đã xóa ${result.succeeded} điểm đến',
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final paginatedState = ref.watch(adminDestinationProvider);
-    final allItems = paginatedState.items;
+    final state = ref.watch(adminDestinationProvider);
+    final countStats = ref.watch(adminDestinationContentStatsProvider);
 
-    // Show initial loading spinner
-    if (paginatedState.isInitialLoading && allItems.isEmpty) {
+    if (state.isInitialLoading && state.items.isEmpty) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    // Show error state
-    if (paginatedState.error != null && allItems.isEmpty) {
+    if (state.hasError && state.items.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(
-          child: Text('Lỗi tải dữ liệu điểm đến: ${paginatedState.error}'),
+        body: AdminErrorState(
+          message: state.errorMessage ?? 'Không thể tải danh sách điểm đến',
+          onRetry: () => ref.read(adminDestinationProvider.notifier).refresh(),
         ),
       );
     }
 
-    final filtered = _applyFilters(allItems);
-    final hasActiveFilters = _searchQuery.isNotEmpty;
+    final allSelected =
+        state.items.isNotEmpty &&
+        state.selectedIds.length == state.items.length &&
+        state.selectedIds.containsAll(state.items.map((item) => item.id));
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          _buildHeader(filtered, hasActiveFilters),
-          if (_selectedIds.isNotEmpty) _buildBatchBar(),
-          const SizedBox(height: 8),
-          _buildTableHeader(filtered),
-          Expanded(
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Chưa có điểm đến nào',
-                      style: TextStyle(color: Colors.grey, fontSize: 16),
+      body: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            AdminPageHeader(
+              title: 'Quản lý Điểm đến',
+              subtitle:
+                  '${state.items.length}${state.hasMore ? '+' : ''} điểm đến${state.query.hasActiveCriteria ? ' đang theo bộ lọc hiện tại' : ''}',
+              actions: [
+                FilledButton.icon(
+                  onPressed: () => _showDestinationForm(null),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Thêm điểm đến'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
                     ),
-                  )
-                : _buildPaginatedList(filtered, paginatedState),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaginatedList(
-    List<Destination> filtered,
-    PaginatedState<Destination> paginatedState,
-  ) {
-    // If search is active, don't use the scroll controller for pagination
-    final useScrollController = _searchQuery.isEmpty;
-    return ListView.builder(
-      controller: useScrollController ? _scrollController : null,
-      padding: const EdgeInsets.symmetric(horizontal: 36),
-      itemCount:
-          filtered.length +
-          (paginatedState.hasMore && _searchQuery.isEmpty ? 1 : 0),
-      itemBuilder: (_, i) {
-        if (i == filtered.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: paginatedState.isLoadingMore
-                  ? const CircularProgressIndicator()
-                  : TextButton.icon(
-                      onPressed: () => ref
-                          .read(adminDestinationProvider.notifier)
-                          .loadNextPage(),
-                      icon: const Icon(Icons.expand_more),
-                      label: const Text('Tải thêm'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                  ),
+                ),
+              ],
             ),
-          );
-        }
-        return _buildRow(filtered[i]);
-      },
-    );
-  }
-
-  // ── HEADER ──────────────────────────────────────────────
-  Widget _buildHeader(List<Destination> filtered, bool hasActiveFilters) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(36, 24, 36, 0),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Quản lý Điểm đến',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${filtered.length} điểm đến'
-                '${hasActiveFilters ? ' (đã lọc)' : ''}',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13),
-              ),
-            ],
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 220,
-                height: 42,
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Tìm theo tên...',
-                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: Colors.grey[400],
-                      size: 20,
-                    ),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF6366F1),
-                        width: 1.5,
+            const SizedBox(height: 16),
+            AdminSearchToolbar(
+              searchValue: state.query.search,
+              onSearchChanged: ref
+                  .read(adminDestinationProvider.notifier)
+                  .updateSearch,
+              searchHint: 'Tìm theo tên điểm đến...',
+            ),
+            if (state.hasSelection) ...[
+              const SizedBox(height: 16),
+              AdminBatchActionBar(
+                selectionLabel: 'Đã chọn ${state.selectedIds.length} điểm đến',
+                onClearSelection: ref
+                    .read(adminDestinationProvider.notifier)
+                    .clearSelection,
+                actions: [
+                  FilledButton.icon(
+                    key: const Key('batch_delete_destinations'),
+                    onPressed: () => _confirmBatchDelete(state.selectedIds),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Xóa'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: () => _showDestinationForm(null),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Thêm điểm đến'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                ),
+                ],
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
+            const SizedBox(height: 16),
+            Expanded(
+              child: state.items.isEmpty
+                  ? const AdminEmptyState(
+                      icon: Icons.map_outlined,
+                      title: 'Chưa có điểm đến nào',
+                      message:
+                          'Thêm điểm đến mới hoặc điều chỉnh bộ lọc để xem dữ liệu.',
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Column(
+                        children: [
+                          _DestinationTableHeader(
+                            allSelected: allSelected,
+                            onToggleAll: () => ref
+                                .read(adminDestinationProvider.notifier)
+                                .toggleSelectAllVisible(),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(
+                            child: ListView.separated(
+                              controller: _scrollController,
+                              padding: EdgeInsets.zero,
+                              itemCount:
+                                  state.items.length + (state.hasMore ? 1 : 0),
+                              separatorBuilder: (_, __) =>
+                                  Divider(height: 1, color: Colors.grey[100]),
+                              itemBuilder: (context, index) {
+                                if (index >= state.items.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Center(
+                                      child: state.isLoadingMore
+                                          ? const CircularProgressIndicator()
+                                          : TextButton.icon(
+                                              onPressed: () => ref
+                                                  .read(
+                                                    adminDestinationProvider
+                                                        .notifier,
+                                                  )
+                                                  .loadNextPage(),
+                                              icon: const Icon(
+                                                Icons.expand_more,
+                                              ),
+                                              label: const Text('Tải thêm'),
+                                            ),
+                                    ),
+                                  );
+                                }
 
-  // ── BATCH ACTION BAR ────────────────────────────────────
-  Widget _buildBatchBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(36, 12, 36, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                                final destination = state.items[index];
+                                final stats = countStats.value?[destination.id];
+
+                                return _DestinationRow(
+                                  destination: destination,
+                                  locationCount:
+                                      stats?.locationCount ??
+                                      destination.locationCount,
+                                  reviewCount:
+                                      stats?.reviewCount ??
+                                      destination.postCount,
+                                  isSelected: state.selectedIds.contains(
+                                    destination.id,
+                                  ),
+                                  onToggleSelection: () => ref
+                                      .read(adminDestinationProvider.notifier)
+                                      .toggleSelection(destination.id),
+                                  onEdit: () =>
+                                      _showDestinationForm(destination),
+                                  onDelete: () => _confirmDelete(destination),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
-      child: Row(
-        children: [
-          Text(
-            '${_selectedIds.length} đã chọn',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF6366F1),
-              fontSize: 14,
-            ),
-          ),
-          const Spacer(),
-          OutlinedButton(
-            onPressed: () => setState(() => _selectedIds.clear()),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.grey[600],
-              side: BorderSide(color: Colors.grey.shade300),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
-            child: const Text('Bỏ chọn', style: TextStyle(fontSize: 13)),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            key: const Key('batch_delete_destinations'),
-            onPressed: _confirmBatchDelete,
-            icon: const Icon(Icons.delete_outline, size: 18),
-            label: const Text('Xóa', style: TextStyle(fontSize: 13)),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
-          ),
-        ],
-      ),
     );
   }
+}
 
-  // ── TABLE HEADER ────────────────────────────────────────
-  Widget _buildTableHeader(List<Destination> filtered) {
-    final allSelected =
-        filtered.isNotEmpty && _selectedIds.length == filtered.length;
+class _DestinationTableHeader extends StatelessWidget {
+  const _DestinationTableHeader({
+    required this.allSelected,
+    required this.onToggleAll,
+  });
 
+  final bool allSelected;
+  final VoidCallback onToggleAll;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(36, 12, 36, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        border: Border.all(color: Colors.grey.shade200),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Row(
-        children: [
-          SizedBox(
-            width: 40,
-            child: Checkbox(
-              value: allSelected,
-              onChanged: (_) => _toggleSelectAll(filtered),
-              activeColor: const Color(0xFF6366F1),
-            ),
-          ),
-          const SizedBox(width: 60), // image placeholder
-          const Expanded(
+        children: const [
+          SizedBox(width: 40, child: _HeaderCheckbox()),
+          SizedBox(width: 60),
+          Expanded(
             flex: 4,
             child: Text(
-              'Tên',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              'Tên điểm đến',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
-
-          const Expanded(
+          Expanded(
             flex: 2,
             child: Text(
               'Địa điểm',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
-
-          const Expanded(
+          Expanded(
             flex: 2,
             child: Text(
               'Bài viết',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
-          const SizedBox(
-            width: 100,
+          SizedBox(
+            width: 112,
             child: Text(
               'Thao tác',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  // ── DATA ROW ────────────────────────────────────────────
-  Widget _buildRow(Destination dest) {
-    final isSelected = _selectedIds.contains(dest.id);
+class _HeaderCheckbox extends ConsumerWidget {
+  const _HeaderCheckbox();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isSelected
-            ? const Color(0xFF6366F1).withValues(alpha: 0.04)
-            : Colors.white,
-        border: Border(
-          left: BorderSide(color: Colors.grey.shade200),
-          right: BorderSide(color: Colors.grey.shade200),
-          bottom: BorderSide(color: Colors.grey.shade200),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 40,
-            child: Checkbox(
-              value: isSelected,
-              onChanged: (_) {
-                setState(() {
-                  isSelected
-                      ? _selectedIds.remove(dest.id)
-                      : _selectedIds.add(dest.id);
-                });
-              },
-              activeColor: const Color(0xFF6366F1),
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              dest.heroImage,
-              width: 48,
-              height: 48,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 48,
-                height: 48,
-                color: Colors.grey[200],
-                child: const Icon(Icons.image, color: Colors.grey, size: 20),
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(adminDestinationProvider);
+    final allSelected =
+        state.items.isNotEmpty &&
+        state.selectedIds.length == state.items.length &&
+        state.selectedIds.containsAll(state.items.map((item) => item.id));
+
+    return Checkbox(
+      value: allSelected,
+      onChanged: (_) =>
+          ref.read(adminDestinationProvider.notifier).toggleSelectAllVisible(),
+      activeColor: const Color(0xFF6366F1),
+    );
+  }
+}
+
+class _DestinationRow extends StatelessWidget {
+  const _DestinationRow({
+    required this.destination,
+    required this.locationCount,
+    required this.reviewCount,
+    required this.isSelected,
+    required this.onToggleSelection,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Destination destination;
+  final int locationCount;
+  final int reviewCount;
+  final bool isSelected;
+  final VoidCallback onToggleSelection;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onToggleSelection,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: isSelected ? const Color(0xFFEEF2FF) : null,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 40,
+              child: Checkbox(
+                value: isSelected,
+                onChanged: (_) => onToggleSelection(),
+                activeColor: const Color(0xFF6366F1),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 4,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  dest.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                if (dest.description.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: destination.heroImage.isEmpty
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      color: Colors.grey[200],
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.image_outlined,
+                        color: Colors.grey,
+                      ),
+                    )
+                  : Image.network(
+                      destination.heroImage,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 48,
+                        height: 48,
+                        color: Colors.grey[200],
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_outlined,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    dest.description,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    destination.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-              ],
+                  if (destination.description.trim().isNotEmpty)
+                    Text(
+                      destination.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Builder(
-              builder: (_) {
-                final locations = ref.watch(adminLocationProvider).items;
-                final count = locations
-                    .where((l) => l.destinationId == dest.id)
-                    .length;
-                return Text(
-                  '$count',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                );
-              },
+            Expanded(
+              flex: 2,
+              child: Text(
+                '$locationCount',
+                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Builder(
-              builder: (_) {
-                final reviews = ref.watch(adminReviewProvider).items;
-                final count = reviews
-                    .where((r) => r.destinationId == dest.id)
-                    .length;
-                return Text(
-                  '$count',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                );
-              },
+            Expanded(
+              flex: 2,
+              child: Text(
+                '$reviewCount',
+                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              ),
             ),
-          ),
-          SizedBox(
-            width: 100,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 20),
-                  color: Colors.blue,
-                  tooltip: 'Sửa',
-                  onPressed: () => _showDestinationForm(dest),
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  color: Colors.red,
-                  tooltip: 'Xóa',
-                  onPressed: () => _confirmDelete(dest),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
+            SizedBox(
+              width: 112,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: onEdit,
+                    tooltip: 'Sửa',
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    color: const Color(0xFF2563EB),
+                  ),
+                  IconButton(
+                    onPressed: onDelete,
+                    tooltip: 'Xóa',
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: const Color(0xFFDC2626),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

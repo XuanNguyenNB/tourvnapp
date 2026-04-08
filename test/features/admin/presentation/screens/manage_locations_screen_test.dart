@@ -79,6 +79,35 @@ class FakeDestinationRepository implements DestinationRepository {
   }
 
   @override
+  Future<({List<Location> items, DocumentSnapshot? lastDoc})>
+  fetchAdminLocations({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String? destinationId,
+    String? category,
+    String search = '',
+  }) async {
+    var filtered = _locations.toList();
+    if (destinationId != null && destinationId.isNotEmpty) {
+      filtered = filtered
+          .where((location) => location.destinationId == destinationId)
+          .toList();
+    }
+    if (category != null && category.isNotEmpty) {
+      filtered = filtered
+          .where((location) => location.category == category)
+          .toList();
+    }
+    if (search.trim().isNotEmpty) {
+      final normalized = search.trim().toLowerCase();
+      filtered = filtered
+          .where((location) => location.name.toLowerCase().contains(normalized))
+          .toList();
+    }
+    return (items: filtered.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
   Future<int> fixInconsistentDestinationIds() async => 0;
 
   @override
@@ -144,7 +173,7 @@ void main() {
       ],
       child: const MaterialApp(
         home: MediaQuery(
-          data: MediaQueryData(size: Size(1400, 1000)),
+          data: MediaQueryData(size: Size(1600, 1600)),
           child: ManageLocationsScreen(),
         ),
       ),
@@ -178,7 +207,7 @@ void main() {
     await tester.tap(find.byTooltip('Xóa').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Xóa Địa điểm?'), findsOneWidget);
+    expect(find.text('Xóa địa điểm?'), findsOneWidget);
     expect(find.text('Hủy'), findsOneWidget);
     expect(find.text('Xóa'), findsWidgets);
   });

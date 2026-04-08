@@ -46,6 +46,9 @@ class PendingActivity {
   /// Timestamp when this activity was added.
   final DateTime addedAt;
 
+  /// Optional AI-generated notes for this activity.
+  final String? notes;
+
   const PendingActivity({
     required this.id,
     required this.dayIndex,
@@ -59,6 +62,7 @@ class PendingActivity {
     required this.destinationId,
     required this.destinationName,
     required this.addedAt,
+    this.notes,
   });
 
   /// Create from [DayPickerSelection].
@@ -102,6 +106,7 @@ class PendingActivity {
     String? destinationId,
     String? destinationName,
     DateTime? addedAt,
+    String? notes,
   }) {
     return PendingActivity(
       id: id ?? this.id,
@@ -116,6 +121,7 @@ class PendingActivity {
       destinationId: destinationId ?? this.destinationId,
       destinationName: destinationName ?? this.destinationName,
       addedAt: addedAt ?? this.addedAt,
+      notes: notes ?? this.notes,
     );
   }
 

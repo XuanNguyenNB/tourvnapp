@@ -9,6 +9,7 @@
     "build": "tsc",
     "test": "npm run build && node --test tests/ai_review_utils.test.cjs",
     "serve": "npm run build && firebase emulators:start --only functions",
+    "serve:demo-ai": "npm run build && node lib/demo_server.js",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },

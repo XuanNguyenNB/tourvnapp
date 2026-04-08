@@ -57,14 +57,18 @@ abstract class VisualPlannerSnackBars {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Đã xóa "$activityName"'),
+        content: Text(
+          'Đã xóa "$activityName"',
+          style: const TextStyle(color: Colors.white),
+        ),
         duration: const Duration(seconds: 5),
-        backgroundColor: AppColors.surface,
+        backgroundColor: Colors.grey.shade800,
         behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(AppSpacing.md),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         action: SnackBarAction(
           label: 'Hoàn tác',
-          textColor: AppColors.primary,
+          textColor: Colors.amberAccent,
           onPressed: onUndo,
         ),
       ),

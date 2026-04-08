@@ -12,6 +12,7 @@ import '../../../trip/presentation/widgets/add_to_trip_gesture_wrapper.dart';
 import '../../../trip/presentation/widgets/day_picker_bottom_sheet.dart';
 import '../../../recommendation/presentation/providers/recommendation_provider.dart';
 import '../../../recommendation/domain/entities/user_interaction_event.dart';
+import '../../../saved/presentation/widgets/bookmark_button.dart';
 
 /// Location Detail Screen displaying full location information.
 ///
@@ -179,29 +180,50 @@ class _LocationDetailContentState
             ),
           ],
         ),
-        // Sticky CTA button
+        // Sticky dual CTA buttons (Layout B)
         Positioned(
           left: 16,
           right: 16,
           bottom: MediaQuery.of(context).padding.bottom + 16,
-          child: GradientButton(
-            text: 'Thêm vào Trip',
-            icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-            onPressed: () {
-              // Show Day Picker Bottom Sheet (Story 4-1)
-              DayPickerBottomSheet.show(
-                context: context,
-                itemData: TripItemData.fromLocation(
-                  id: location.id,
-                  name: location.name,
+          child: Row(
+            children: [
+              // Save/Bookmark button
+              Expanded(
+                flex: 2,
+                child: BookmarkButton(
+                  itemId: location.id,
+                  itemType: 'location',
+                  title: location.name,
                   imageUrl: location.image,
-                  categoryEmoji: location.categoryEmoji,
                   destinationId: location.destinationId,
                   destinationName: location.resolvedDestinationName,
+                  style: BookmarkButtonStyle.pill,
                 ),
-              );
-            },
-            borderRadius: 24,
+              ),
+              const SizedBox(width: 10),
+              // Add to Trip gradient button
+              Expanded(
+                flex: 3,
+                child: GradientButton(
+                  text: 'Thêm vào Trip',
+                  icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                  onPressed: () {
+                    DayPickerBottomSheet.show(
+                      context: context,
+                      itemData: TripItemData.fromLocation(
+                        id: location.id,
+                        name: location.name,
+                        imageUrl: location.image,
+                        categoryEmoji: location.categoryEmoji,
+                        destinationId: location.destinationId,
+                        destinationName: location.resolvedDestinationName,
+                      ),
+                    );
+                  },
+                  borderRadius: 24,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -217,24 +239,15 @@ class _LocationDetailContentState
       foregroundColor: Colors.white,
       leading: _buildBackButton(context),
       actions: [
-        _buildActionButton(Icons.favorite_border, () {
-          // Log 'save' event for recommendation engine
-          logUserEvent(
-            ref,
-            locationId: location.id,
-            destinationId: location.destinationId,
-            type: InteractionType.save,
-            locationCategory: location.category,
-            locationTags: location.tags,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã lưu vào yêu thích ❤️'),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }),
+        BookmarkButton(
+          itemId: location.id,
+          itemType: 'location',
+          title: location.name,
+          imageUrl: location.image,
+          destinationId: location.destinationId,
+          destinationName: location.resolvedDestinationName,
+          style: BookmarkButtonStyle.headerCircle,
+        ),
         if (location.hasCoordinates)
           _buildActionButton(Icons.map_outlined, () {
             HapticFeedback.lightImpact();

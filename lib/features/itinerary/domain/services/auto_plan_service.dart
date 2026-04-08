@@ -208,6 +208,7 @@ class AutoPlanResult {
           estimatedDuration: _durationLabel(stop.durationMin),
           destinationId: stop.location.destinationId,
           destinationName: stop.location.resolvedDestinationName,
+          notes: stop.aiDescription,
         );
       }).toList();
 
@@ -428,10 +429,28 @@ class AutoPlanService {
     }
 
     // 6) Select sightseeing list, exclude reserved + stay
+    //    Prioritize pinned (saved/bookmarked) locations first
     final sightseeing = <Location>[];
+
+    // 6a) Insert pinned locations at the front (if usePinnedLocations)
+    if (request.usePinnedLocations && request.pinnedLocationIds.isNotEmpty) {
+      for (final pinnedId in request.pinnedLocationIds) {
+        if (sightseeing.length >= totalSightseeingNeeded) break;
+        if (reserved.contains(pinnedId)) continue;
+        final loc = locationById[pinnedId];
+        if (loc == null) continue;
+        if (loc.category.toLowerCase() == 'stay') continue;
+        sightseeing.add(loc);
+        // Add default reasons for pinned items
+        reasonsById.putIfAbsent(loc.id, () => ['📌 Đã lưu bởi bạn']);
+      }
+    }
+
+    // 6b) Fill remaining slots with ranked recommendations
     for (final loc in ranked) {
       if (sightseeing.length >= totalSightseeingNeeded) break;
       if (reserved.contains(loc.id)) continue;
+      if (sightseeing.any((s) => s.id == loc.id)) continue; // skip if already pinned
       if (loc.category.toLowerCase() == 'stay') continue;
       if (!loc.hasCoordinates) continue;
       sightseeing.add(loc);

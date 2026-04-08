@@ -53,7 +53,7 @@ final homeRecommendationsProvider =
 
       // 1. Load all locations
       final destRepo = ref.watch(destinationRepositoryProvider);
-      final allLocations = await destRepo.getAllLocations();
+      final allLocations = await destRepo.getPublishedLocations();
       if (allLocations.isEmpty) return [];
 
       // 2. Load user profile: Firestore first, local fallback

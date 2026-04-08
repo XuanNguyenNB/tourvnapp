@@ -66,4 +66,22 @@ class AiContentService {
       count: count,
     );
   }
+
+  Future<Map<String, dynamic>> expandReviewDraft({
+    required Map<String, dynamic> draftReview,
+    required List<Map<String, dynamic>> existingLocations,
+    String? prompt,
+    String? destinationId,
+    String? destinationName,
+    String articleStyle = 'review',
+  }) {
+    return _backendService.expandReviewDraft(
+      draftReview: draftReview,
+      existingLocations: existingLocations,
+      prompt: prompt,
+      destinationId: destinationId,
+      destinationName: destinationName,
+      articleStyle: articleStyle,
+    );
+  }
 }

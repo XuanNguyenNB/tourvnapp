@@ -10,6 +10,10 @@ class DestinationRepository {
 
   final FirebaseFirestore _firestore;
 
+  bool _isMissingIndexError(Object error) {
+    return error is FirebaseException && error.code == 'failed-precondition';
+  }
+
   /// Get destination by ID
   ///
   /// Returns the destination if found, throws exception if not found.
@@ -21,9 +25,25 @@ class DestinationRepository {
     return Destination.fromJson(doc.data()!);
   }
 
+  Future<Destination> getPublishedDestinationById(String id) async {
+    final destination = await getDestinationById(id);
+    if (destination.status != 'published') {
+      throw Exception('Published destination not found: $id');
+    }
+    return destination;
+  }
+
   /// Get all destinations
   Future<List<Destination>> getAllDestinations() async {
     final snapshot = await _firestore.collection('destinations').get();
+    return snapshot.docs.map((d) => Destination.fromJson(d.data())).toList();
+  }
+
+  Future<List<Destination>> getPublishedDestinations() async {
+    final snapshot = await _firestore
+        .collection('destinations')
+        .where('status', isEqualTo: 'published')
+        .get();
     return snapshot.docs.map((d) => Destination.fromJson(d.data())).toList();
   }
 
@@ -47,12 +67,40 @@ class DestinationRepository {
     return all.where((d) => d.name.toLowerCase().contains(lowerQuery)).toList();
   }
 
+  Future<({List<Destination> items, DocumentSnapshot? lastDoc})>
+  fetchAdminDestinations({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String search = '',
+  }) async {
+    final normalizedSearch = search.trim().toLowerCase();
+    if (normalizedSearch.isNotEmpty) {
+      final snapshot = await _firestore
+          .collection('destinations')
+          .orderBy('name')
+          .get();
+      final items = snapshot.docs
+          .map((doc) => Destination.fromJson(doc.data()))
+          .where(
+            (destination) =>
+                destination.name.toLowerCase().contains(normalizedSearch),
+          )
+          .take(limit)
+          .toList();
+      return (items: items, lastDoc: null);
+    }
+
+    return getDestinationsPaginated(limit: limit, startAfter: startAfter);
+  }
+
   /// Create new destination
   Future<void> createDestination(Destination destination) async {
-    await _firestore
-        .collection('destinations')
-        .doc(destination.id)
-        .set(destination.toJson());
+    final docRef = _firestore.collection('destinations').doc(destination.id);
+    final existing = await docRef.get();
+    if (existing.exists) {
+      throw Exception('Điểm đến với ID "${destination.id}" đã tồn tại.');
+    }
+    await docRef.set(destination.toJson());
   }
 
   /// Update existing destination (excludes computed stats fields)
@@ -73,6 +121,17 @@ class DestinationRepository {
     final snapshot = await _firestore
         .collection('locations')
         .where('destinationId', isEqualTo: destinationId)
+        .get();
+    return snapshot.docs.map((d) => Location.fromJson(d.data())).toList();
+  }
+
+  Future<List<Location>> getPublishedLocationsByDestination(
+    String destinationId,
+  ) async {
+    final snapshot = await _firestore
+        .collection('locations')
+        .where('destinationId', isEqualTo: destinationId)
+        .where('status', isEqualTo: 'published')
         .get();
     return snapshot.docs.map((d) => Location.fromJson(d.data())).toList();
   }
@@ -99,6 +158,14 @@ class DestinationRepository {
     final doc = await _firestore.collection('locations').doc(locationId).get();
     if (!doc.exists) throw Exception('Location not found: $locationId');
     return Location.fromJson(doc.data()!);
+  }
+
+  Future<Location> getPublishedLocationById(String locationId) async {
+    final location = await getLocationById(locationId);
+    if (location.status != 'published') {
+      throw Exception('Published location not found: $locationId');
+    }
+    return location;
   }
 
   /// Get multiple locations by their IDs
@@ -129,6 +196,14 @@ class DestinationRepository {
   /// Get all locations across all destinations
   Future<List<Location>> getAllLocations() async {
     final snapshot = await _firestore.collection('locations').get();
+    return snapshot.docs.map((d) => Location.fromJson(d.data())).toList();
+  }
+
+  Future<List<Location>> getPublishedLocations() async {
+    final snapshot = await _firestore
+        .collection('locations')
+        .where('status', isEqualTo: 'published')
+        .get();
     return snapshot.docs.map((d) => Location.fromJson(d.data())).toList();
   }
 
@@ -238,25 +313,121 @@ class DestinationRepository {
     }
   }
 
+  Future<List<Location>> searchPublishedLocations(String query) async {
+    final locations = await searchLocations(query);
+    return locations
+        .where((location) => location.status == 'published')
+        .toList();
+  }
+
+  Future<({List<Location> items, DocumentSnapshot? lastDoc})>
+  fetchAdminLocations({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String? destinationId,
+    String? category,
+    String search = '',
+  }) async {
+    final normalizedSearch = queryToKeyword(search);
+    if (normalizedSearch != null) {
+      final items = await searchLocationsForAdmin(
+        search,
+        destinationId: destinationId,
+        category: category,
+        limit: limit,
+      );
+      return (items: items, lastDoc: null);
+    }
+
+    try {
+      Query query = _firestore
+          .collection('locations')
+          .orderBy('name')
+          .limit(limit);
+      if (destinationId != null && destinationId.isNotEmpty) {
+        query = query.where('destinationId', isEqualTo: destinationId);
+      }
+      if (category != null && category.isNotEmpty) {
+        query = query.where('category', isEqualTo: category);
+      }
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
+
+      final snapshot = await query.get();
+      final items = snapshot.docs
+          .map((doc) => Location.fromJson(doc.data() as Map<String, dynamic>))
+          .toList();
+      return (
+        items: items,
+        lastDoc: snapshot.docs.length == limit ? snapshot.docs.last : null,
+      );
+    } catch (error) {
+      if (!_isMissingIndexError(error)) rethrow;
+
+      final items = (await getAllLocations()).where((location) {
+        final matchDestination =
+            destinationId == null ||
+            destinationId.isEmpty ||
+            location.destinationId == destinationId;
+        final matchCategory =
+            category == null ||
+            category.isEmpty ||
+            location.category == category;
+        return matchDestination && matchCategory;
+      }).toList()..sort((a, b) => a.name.compareTo(b.name));
+
+      return (items: items.take(limit).toList(), lastDoc: null);
+    }
+  }
+
   /// Create new location
   Future<void> createLocation(Location location) async {
-    await _firestore
-        .collection('locations')
-        .doc(location.id)
-        .set(location.toJson());
+    final docRef = _firestore.collection('locations').doc(location.id);
+    final existing = await docRef.get();
+    if (existing.exists) {
+      throw Exception('Địa điểm với ID "${location.id}" đã tồn tại.');
+    }
+
+    final normalized = await _prepareLocationForWrite(location);
+    await docRef.set(normalized.toJson());
   }
 
   /// Update existing location (excludes user-generated stats)
   Future<void> updateLocation(Location location) async {
+    final normalized = await _prepareLocationForWrite(location);
     await _firestore
         .collection('locations')
         .doc(location.id)
-        .update(location.toEditableJson());
+        .update(normalized.toEditableJson());
   }
 
   /// Delete location
   Future<void> deleteLocation(String id) async {
     await _firestore.collection('locations').doc(id).delete();
+  }
+
+  Future<Location> _prepareLocationForWrite(Location location) async {
+    final destinationId = location.destinationId.trim();
+    if (destinationId.isEmpty) {
+      throw Exception('Địa điểm phải thuộc một điểm đến hợp lệ.');
+    }
+
+    final destination = await getDestinationById(destinationId);
+    final searchKeywords = location.searchKeywords.isNotEmpty
+        ? location.searchKeywords
+        : VietnameseTextUtils.generateSearchKeywords(location.name);
+
+    return location.copyWith(
+      destinationId: destinationId,
+      destinationName: destination.name,
+      searchKeywords: searchKeywords,
+      tags: location.tags
+          .map((tag) => tag.trim())
+          .where((tag) => tag.isNotEmpty)
+          .toSet()
+          .toList(),
+    );
   }
 
   // ── Pagination Methods ─────────────────────────────────────
@@ -291,22 +462,34 @@ class DestinationRepository {
     DocumentSnapshot? startAfter,
     String? destinationId,
   }) async {
-    Query query = _firestore
-        .collection('locations')
-        .orderBy('name')
-        .limit(limit);
-    if (destinationId != null && destinationId.isNotEmpty) {
-      query = query.where('destinationId', isEqualTo: destinationId);
+    try {
+      Query query = _firestore
+          .collection('locations')
+          .orderBy('name')
+          .limit(limit);
+      if (destinationId != null && destinationId.isNotEmpty) {
+        query = query.where('destinationId', isEqualTo: destinationId);
+      }
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
+      final snapshot = await query.get();
+      final items = snapshot.docs
+          .map((d) => Location.fromJson(d.data() as Map<String, dynamic>))
+          .toList();
+      final lastDoc = snapshot.docs.length == limit ? snapshot.docs.last : null;
+      return (items: items, lastDoc: lastDoc);
+    } catch (error) {
+      if (!_isMissingIndexError(error)) rethrow;
+
+      final items = (await getAllLocations()).where((location) {
+        return destinationId == null ||
+            destinationId.isEmpty ||
+            location.destinationId == destinationId;
+      }).toList()..sort((a, b) => a.name.compareTo(b.name));
+
+      return (items: items.take(limit).toList(), lastDoc: null);
     }
-    if (startAfter != null) {
-      query = query.startAfterDocument(startAfter);
-    }
-    final snapshot = await query.get();
-    final items = snapshot.docs
-        .map((d) => Location.fromJson(d.data() as Map<String, dynamic>))
-        .toList();
-    final lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
-    return (items: items, lastDoc: lastDoc);
   }
 
   // ── Batch Operations ───────────────────────────────────────
@@ -337,20 +520,94 @@ class DestinationRepository {
   Future<List<Location>> searchLocationsByKeywords(
     String keyword, {
     String? destinationId,
+    String? category,
     int limit = 20,
   }) async {
-    Query query = _firestore
-        .collection('locations')
-        .where('searchKeywords', arrayContains: keyword.toLowerCase())
-        .limit(limit);
+    try {
+      Query query = _firestore
+          .collection('locations')
+          .where('searchKeywords', arrayContains: keyword.toLowerCase())
+          .limit(limit);
 
-    if (destinationId != null && destinationId.isNotEmpty) {
-      query = query.where('destinationId', isEqualTo: destinationId);
+      if (destinationId != null && destinationId.isNotEmpty) {
+        query = query.where('destinationId', isEqualTo: destinationId);
+      }
+
+      if (category != null && category.isNotEmpty) {
+        query = query.where('category', isEqualTo: category);
+      }
+
+      final snapshot = await query.get();
+      return snapshot.docs
+          .map((d) => Location.fromJson(d.data() as Map<String, dynamic>))
+          .toList();
+    } catch (error) {
+      if (!_isMissingIndexError(error)) rethrow;
+
+      return (await getAllLocations())
+          .where((location) {
+            final matchKeyword = location.searchKeywords
+                .map((item) => item.toLowerCase())
+                .contains(keyword.toLowerCase());
+            final matchDestination =
+                destinationId == null ||
+                destinationId.isEmpty ||
+                location.destinationId == destinationId;
+            final matchCategory =
+                category == null ||
+                category.isEmpty ||
+                location.category == category;
+            return matchKeyword && matchDestination && matchCategory;
+          })
+          .take(limit)
+          .toList();
+    }
+  }
+
+  Future<List<Location>> searchLocationsForAdmin(
+    String query, {
+    String? destinationId,
+    String? category,
+    int limit = 30,
+  }) async {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) return const [];
+
+    final noDiacriticsQuery = VietnameseTextUtils.removeDiacritics(
+      normalizedQuery,
+    );
+
+    final results = await searchLocationsByKeywords(
+      noDiacriticsQuery,
+      destinationId: destinationId,
+      category: category,
+      limit: limit,
+    );
+
+    if (noDiacriticsQuery == normalizedQuery) {
+      return results;
     }
 
-    final snapshot = await query.get();
-    return snapshot.docs
-        .map((d) => Location.fromJson(d.data() as Map<String, dynamic>))
-        .toList();
+    final vietnameseResults = await searchLocationsByKeywords(
+      normalizedQuery,
+      destinationId: destinationId,
+      category: category,
+      limit: limit,
+    );
+
+    final seenIds = results.map((location) => location.id).toSet();
+    for (final location in vietnameseResults) {
+      if (seenIds.add(location.id)) {
+        results.add(location);
+      }
+    }
+
+    return results;
+  }
+
+  String? queryToKeyword(String query) {
+    final normalized = query.trim();
+    if (normalized.isEmpty) return null;
+    return normalized;
   }
 }

@@ -40,6 +40,12 @@ class Activity {
   /// Example: "Đà Nẵng", "Huế", "Hà Nội"
   final String? destinationName;
 
+  /// Optional AI-generated tips or notes for this activity.
+  final String? notes;
+
+  /// Whether this activity has been completed/visited by the user.
+  final bool isCompleted;
+
   const Activity({
     required this.id,
     required this.locationId,
@@ -52,6 +58,8 @@ class Activity {
     this.estimatedDurationMin,
     this.destinationId,
     this.destinationName,
+    this.notes,
+    this.isCompleted = false,
   });
 
   /// Create Activity from a PendingActivity.
@@ -70,6 +78,7 @@ class Activity {
       estimatedDuration: pending.estimatedDuration,
       destinationId: pending.destinationId,
       destinationName: pending.destinationName,
+      notes: pending.notes,
     );
   }
 
@@ -86,6 +95,8 @@ class Activity {
     'estimatedDurationMin': estimatedDurationMin,
     'destinationId': destinationId,
     'destinationName': destinationName,
+    if (notes != null) 'notes': notes,
+    'isCompleted': isCompleted,
   };
 
   /// Deserialize from Firestore map.
@@ -102,6 +113,8 @@ class Activity {
     estimatedDurationMin: map['estimatedDurationMin'] as int?,
     destinationId: map['destinationId'] as String?,
     destinationName: map['destinationName'] as String?,
+    notes: map['notes'] as String?,
+    isCompleted: map['isCompleted'] as bool? ?? false,
   );
 
   /// Create a copy with optional field overrides.
@@ -117,6 +130,8 @@ class Activity {
     int? estimatedDurationMin,
     String? destinationId,
     String? destinationName,
+    String? notes,
+    bool? isCompleted,
   }) {
     return Activity(
       id: id ?? this.id,
@@ -130,6 +145,8 @@ class Activity {
       estimatedDurationMin: estimatedDurationMin ?? this.estimatedDurationMin,
       destinationId: destinationId ?? this.destinationId,
       destinationName: destinationName ?? this.destinationName,
+      notes: notes ?? this.notes,
+      isCompleted: isCompleted ?? this.isCompleted,
     );
   }
 

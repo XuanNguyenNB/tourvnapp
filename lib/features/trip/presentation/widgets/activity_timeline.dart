@@ -24,6 +24,8 @@ class ActivityTimeline extends StatelessWidget {
     this.onActivityLongPress,
     this.onActivityDelete,
     this.onReorder,
+    this.onActivityComplete,
+    this.showMapButton = false,
   });
 
   /// List of activities to display (pre-sorted by time slot).
@@ -43,6 +45,12 @@ class ActivityTimeline extends StatelessWidget {
   /// Callback when activities are reordered.
   /// Called with (oldIndex, newIndex) after index adjustment.
   final void Function(int oldIndex, int newIndex)? onReorder;
+
+  /// Callback when activity completion status is toggled.
+  final void Function(Activity activity, bool isCompleted)? onActivityComplete;
+
+  /// Whether to show "Open in Maps" button on each activity card.
+  final bool showMapButton;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +78,10 @@ class ActivityTimeline extends StatelessWidget {
           onDelete: onActivityDelete != null
               ? () => onActivityDelete!(activity)
               : null,
+          onCompletionToggle: onActivityComplete != null
+              ? (isCompleted) => onActivityComplete!(activity, isCompleted)
+              : null,
+          showMapButton: showMapButton,
         );
       },
     );
@@ -127,6 +139,8 @@ class _TimelineItem extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.onDelete,
+    this.onCompletionToggle,
+    this.showMapButton = false,
   });
 
   final Activity activity;
@@ -138,42 +152,48 @@ class _TimelineItem extends StatelessWidget {
   /// Returns true if delete succeeded, false to cancel dismiss animation.
   final Future<bool> Function()? onDelete;
 
+  /// Callback when completion status is toggled.
+  final ValueChanged<bool>? onCompletionToggle;
+
+  /// Whether to show map button on activity card.
+  final bool showMapButton;
+
   @override
   Widget build(BuildContext context) {
-    // Use Material with constrained height for ReorderableListView compatibility
-    // Height 120 accommodates card content without overflow
     return Material(
       color: Colors.transparent,
-      child: Container(
-        height:
-            145, // Fixed height for timeline items (accommodates chip + name + destination + duration)
+      child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Timeline connector with emoji
-            TimelineConnector(
-              emoji: activity.emoji ?? '📍',
-              isFirst: isFirst,
-              isLast: isLast,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            // Activity card with swipe-to-delete
-            Expanded(child: _buildDismissibleCard()),
-          ],
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Timeline connector with emoji
+              TimelineConnector(
+                emoji: activity.emoji ?? '📍',
+                isFirst: isFirst,
+                isLast: isLast,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              // Activity card with swipe-to-delete
+              Expanded(child: _buildDismissibleCard(context)),
+            ],
+          ),
         ),
       ),
     );
   }
 
   /// Build dismissible wrapper for activity card.
-  Widget _buildDismissibleCard() {
+  Widget _buildDismissibleCard(BuildContext context) {
     if (onDelete == null) {
       // No delete handler, just return the card
       return ActivityCard(
         activity: activity,
         onTap: onTap,
         onLongPress: onLongPress,
+        onCompletionToggle: onCompletionToggle,
+        showMapButton: showMapButton,
       );
     }
 
@@ -184,8 +204,33 @@ class _TimelineItem extends StatelessWidget {
       movementDuration: const Duration(milliseconds: 250),
       confirmDismiss: (_) async {
         HapticFeedback.mediumImpact();
-        // Call the delete handler and await the result
-        // If it returns false, the dismiss is cancelled
+        // Show confirmation dialog before deleting
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Xác nhận xóa'),
+            content: Text(
+              'Bạn có chắc muốn xóa "${activity.locationName}"?',
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Hủy'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFEF4444),
+                ),
+                child: const Text('Xóa'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return false;
         return await onDelete?.call() ?? false;
       },
       background: _buildDeleteBackground(),
@@ -193,6 +238,8 @@ class _TimelineItem extends StatelessWidget {
         activity: activity,
         onTap: onTap,
         onLongPress: onLongPress,
+        onCompletionToggle: onCompletionToggle,
+        showMapButton: showMapButton,
       ),
     );
   }

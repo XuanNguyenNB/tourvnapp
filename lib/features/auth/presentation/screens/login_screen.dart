@@ -73,7 +73,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Listen for auth state changes and navigate on success
     ref.listen(authStateProvider, (previous, next) {
       next.whenData((user) {
-        if (user != null && context.mounted) {
+        if (user != null && !user.isAnonymous && context.mounted) {
           if (kIsWeb) {
             context.go('/admin');
           } else {

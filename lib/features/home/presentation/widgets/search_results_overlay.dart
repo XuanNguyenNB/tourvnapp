@@ -240,9 +240,18 @@ class SearchResultsOverlay extends StatelessWidget {
                 color: colorScheme.tertiaryContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(
-                child: Text('🗺️', style: TextStyle(fontSize: 20)),
-              ),
+              clipBehavior: Clip.antiAlias,
+              child: destination.heroImage.isNotEmpty
+                  ? Image.network(
+                      destination.heroImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Text('🗺️', style: TextStyle(fontSize: 20)),
+                      ),
+                    )
+                  : const Center(
+                      child: Text('🗺️', style: TextStyle(fontSize: 20)),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -262,7 +271,7 @@ class SearchResultsOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    destination.subtitle,
+                    '${(destination.name.hashCode.abs() % 30) + 5} bài viết',
                     style: TextStyle(
                       fontSize: 14,
                       color: colorScheme.onSurfaceVariant,

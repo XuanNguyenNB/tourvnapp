@@ -90,6 +90,25 @@ class FakeDestinationRepository implements DestinationRepository {
   }
 
   @override
+  Future<({List<Destination> items, DocumentSnapshot? lastDoc})>
+  fetchAdminDestinations({
+    int limit = 20,
+    DocumentSnapshot? startAfter,
+    String search = '',
+  }) async {
+    final normalized = search.trim().toLowerCase();
+    final filtered = normalized.isEmpty
+        ? destinations
+        : destinations
+              .where(
+                (destination) =>
+                    destination.name.toLowerCase().contains(normalized),
+              )
+              .toList();
+    return (items: filtered.take(limit).toList(), lastDoc: null);
+  }
+
+  @override
   Future<({List<Location> items, DocumentSnapshot? lastDoc})>
   getLocationsPaginated({
     int limit = 20,
@@ -298,9 +317,9 @@ void main() {
     await tester.tap(find.byTooltip('Xóa'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Xóa Điểm đến?'), findsOneWidget);
+    expect(find.text('Xóa điểm đến?'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Xóa'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Xóa'));
     await tester.pumpAndSettle();
 
     expect(fakeDestinationRepository.destinations, isEmpty);

@@ -12,7 +12,7 @@ final isAdminProvider = FutureProvider<bool>((ref) async {
   try {
     // Force refresh the token to get the latest claims
     final idTokenResult = await user.getIdTokenResult(true);
-    
+
     // Check if the "admin" claim exists and is true
     final claims = idTokenResult.claims;
     if (claims != null && claims['admin'] == true) {

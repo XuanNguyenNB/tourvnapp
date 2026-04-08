@@ -29,6 +29,7 @@ class CommentRepository {
   Query<Map<String, dynamic>> _commentCollectionGroupQuery({
     String? status,
     int limit = 50,
+    DocumentSnapshot? startAfter,
   }) {
     Query<Map<String, dynamic>> query = _firestore.collectionGroup('comments');
 
@@ -36,7 +37,100 @@ class CommentRepository {
       query = query.where('status', isEqualTo: status);
     }
 
-    return query.orderBy('createdAt', descending: true).limit(limit);
+    query = query.orderBy('createdAt', descending: true).limit(limit);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    return query;
+  }
+
+  bool _isMissingIndexError(Object error) {
+    return error is FirebaseException && error.code == 'failed-precondition';
+  }
+
+  Comment _commentFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    data['id'] = doc.id;
+    data['reviewId'] =
+        data['reviewId'] ?? doc.reference.parent.parent?.id ?? '';
+    return Comment.fromJson(data);
+  }
+
+  List<Comment> _applyAdminCursorFallback(
+    List<Comment> comments, {
+    DocumentSnapshot? startAfter,
+  }) {
+    if (startAfter == null) return comments;
+
+    final raw = startAfter.data();
+    if (raw is! Map<String, dynamic>) {
+      return comments;
+    }
+
+    final cursorId = startAfter.id;
+    final cursorReviewId =
+        raw['reviewId'] as String? ??
+        startAfter.reference.parent.parent?.id ??
+        '';
+
+    final cursorIndex = comments.indexWhere(
+      (comment) => comment.id == cursorId && comment.reviewId == cursorReviewId,
+    );
+
+    if (cursorIndex == -1 || cursorIndex + 1 >= comments.length) {
+      return const [];
+    }
+
+    return comments.sublist(cursorIndex + 1);
+  }
+
+  Future<List<Comment>> _scanCommentsForReview(
+    String reviewId, {
+    String? status,
+  }) async {
+    final snapshot = await _commentsRef(reviewId).get();
+    final items =
+        snapshot.docs.map(_commentFromDoc).where((comment) {
+          return status == null || comment.status == status;
+        }).toList()..sort((a, b) {
+          final byDate = b.createdAt.compareTo(a.createdAt);
+          if (byDate != 0) return byDate;
+          return b.id.compareTo(a.id);
+        });
+    return items;
+  }
+
+  Future<List<Comment>> _scanAllComments({String? status}) async {
+    final reviewsSnapshot = await _firestore.collection('reviews').get();
+    if (reviewsSnapshot.docs.isEmpty) return const [];
+
+    final commentSnapshots = await Future.wait(
+      reviewsSnapshot.docs.map((reviewDoc) {
+        return reviewDoc.reference.collection('comments').get();
+      }),
+    );
+
+    final comments = <Comment>[];
+    for (final snapshot in commentSnapshots) {
+      for (final doc in snapshot.docs) {
+        final comment = _commentFromDoc(doc);
+        if (status == null || comment.status == status) {
+          comments.add(comment);
+        }
+      }
+    }
+
+    comments.sort((a, b) {
+      final byDate = b.createdAt.compareTo(a.createdAt);
+      if (byDate != 0) return byDate;
+      final byReview = b.reviewId.compareTo(a.reviewId);
+      if (byReview != 0) return byReview;
+      return b.id.compareTo(a.id);
+    });
+
+    return comments;
   }
 
   /// Fetch **approved** comments for a review, ordered by newest first.
@@ -51,21 +145,31 @@ class CommentRepository {
     int limit = 20,
     DocumentSnapshot? startAfter,
   }) async {
-    Query<Map<String, dynamic>> query = _commentsRef(reviewId)
-        .where('status', isEqualTo: 'approved')
-        .orderBy('createdAt', descending: true)
-        .limit(limit);
+    try {
+      Query<Map<String, dynamic>> query = _commentsRef(reviewId)
+          .where('status', isEqualTo: 'approved')
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
 
-    if (startAfter != null) {
-      query = query.startAfterDocument(startAfter);
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
+
+      final snapshot = await query.get();
+      return snapshot.docs.map(_commentFromDoc).toList();
+    } catch (error) {
+      if (!_isMissingIndexError(error)) rethrow;
+
+      final fallback = await _scanCommentsForReview(
+        reviewId,
+        status: 'approved',
+      );
+      final sliced = _applyAdminCursorFallback(
+        fallback,
+        startAfter: startAfter,
+      );
+      return sliced.take(limit).toList();
     }
-
-    final snapshot = await query.get();
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      data['id'] = doc.id;
-      return Comment.fromJson(data);
-    }).toList();
   }
 
   /// Add a new comment to a review.
@@ -168,18 +272,54 @@ class CommentRepository {
   ///
   /// Optionally filter by [status].
   Future<List<Comment>> getAllComments({String? status, int limit = 50}) async {
-    final snapshot = await _commentCollectionGroupQuery(
+    final result = await getCommentsForAdmin(status: status, limit: limit);
+    return result.items;
+  }
+
+  Future<({List<Comment> items, DocumentSnapshot? lastDoc})>
+  getCommentsForAdmin({
+    String? status,
+    int limit = 50,
+    DocumentSnapshot? startAfter,
+  }) async {
+    try {
+      final snapshot = await _commentCollectionGroupQuery(
+        status: status,
+        limit: limit,
+        startAfter: startAfter,
+      ).get();
+
+      final items = snapshot.docs.map(_commentFromDoc).toList();
+
+      return (
+        items: items,
+        lastDoc: snapshot.docs.length == limit ? snapshot.docs.last : null,
+      );
+    } catch (error) {
+      if (!_isMissingIndexError(error)) rethrow;
+
+      final fallback = await _scanAllComments(status: status);
+      final sliced = _applyAdminCursorFallback(
+        fallback,
+        startAfter: startAfter,
+      );
+      final items = startAfter == null ? fallback : sliced;
+
+      return (items: items.take(limit).toList(), lastDoc: null);
+    }
+  }
+
+  Future<({List<Comment> items, DocumentSnapshot? lastDoc})>
+  fetchAdminComments({
+    String? status,
+    int limit = 50,
+    DocumentSnapshot? startAfter,
+  }) {
+    return getCommentsForAdmin(
       status: status,
       limit: limit,
-    ).get();
-
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      data['id'] = doc.id;
-      data['reviewId'] =
-          data['reviewId'] ?? doc.reference.parent.parent?.id ?? '';
-      return Comment.fromJson(data);
-    }).toList();
+      startAfter: startAfter,
+    );
   }
 }
 

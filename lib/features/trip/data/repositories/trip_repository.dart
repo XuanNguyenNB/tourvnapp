@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/activity.dart';
 import '../../domain/entities/trip.dart';
+import '../../domain/entities/trip_day.dart';
 import '../mappers/trip_mapper.dart';
 
 /// Repository interface for Trip data operations.
@@ -29,6 +31,14 @@ abstract class TripRepository {
 
   /// Add activities to existing trip from pending state.
   Future<Trip> addToExistingTrip(Trip existingTrip, Trip newData);
+
+  /// Toggle the completion status of a single activity in a trip.
+  Future<Trip> toggleActivityCompletion(
+    Trip trip,
+    int dayIndex,
+    String activityId,
+    bool isCompleted,
+  );
 }
 
 /// Firestore implementation of TripRepository.
@@ -113,6 +123,38 @@ class FirestoreTripRepository implements TripRepository {
     // Merge days and activities
     final updatedTrip = existingTrip.copyWith(
       days: newData.days,
+      updatedAt: DateTime.now(),
+    );
+
+    await updateTrip(updatedTrip);
+    return updatedTrip;
+  }
+
+  @override
+  Future<Trip> toggleActivityCompletion(
+    Trip trip,
+    int dayIndex,
+    String activityId,
+    bool isCompleted,
+  ) async {
+    final updatedDays = List<TripDay>.from(trip.days.map((d) => d.copyWith(
+      activities: List<Activity>.from(d.activities),
+    )));
+
+    if (dayIndex < updatedDays.length) {
+      final day = updatedDays[dayIndex];
+      final updatedActivities = day.activities.map((a) {
+        if (a.id == activityId) {
+          return a.copyWith(isCompleted: isCompleted);
+        }
+        return a;
+      }).toList();
+
+      updatedDays[dayIndex] = day.copyWith(activities: updatedActivities);
+    }
+
+    final updatedTrip = trip.copyWith(
+      days: updatedDays,
       updatedAt: DateTime.now(),
     );
 

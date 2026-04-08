@@ -15,6 +15,7 @@ import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/widgets/shimmer_placeholder.dart';
 import '../widgets/home_recommended_section.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../notification/presentation/providers/notification_provider.dart';
 
 /// Home Screen with Instagram-style feed layout.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -268,21 +269,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          // Right side: notification + avatar
+          // Right side: saved + notification + avatar
           Row(
             children: [
-              // Notification bell
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
+              // Saved items shortcut
+              GestureDetector(
+                onTap: () => context.push('/saved'),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.bookmark_outline,
+                    size: 22,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.notifications_outlined,
-                  size: 22,
-                  color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 8),
+              // Notification bell with badge
+              GestureDetector(
+                onTap: () => context.push('/notifications'),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_outlined,
+                        size: 22,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    // Badge count
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final countAsync = ref.watch(unreadNotificationCountProvider);
+                        return countAsync.when(
+                          data: (count) {
+                            if (count <= 0) return const SizedBox.shrink();
+                            return Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFEF4444),
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                child: Text(
+                                  count > 9 ? '9+' : '$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 10),

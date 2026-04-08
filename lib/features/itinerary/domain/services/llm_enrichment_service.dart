@@ -3,6 +3,18 @@ import 'dart:developer';
 import '../../../../core/services/ai_backend_service.dart';
 import 'auto_plan_service.dart';
 
+class LlmEnrichmentOutcome {
+  const LlmEnrichmentOutcome({
+    required this.result,
+    this.usedFallback = false,
+    this.errorMessage,
+  });
+
+  final AutoPlanResult result;
+  final bool usedFallback;
+  final String? errorMessage;
+}
+
 /// Service that asks the backend AI layer to enrich an AutoPlanResult.
 class LlmEnrichmentService {
   const LlmEnrichmentService({required AiBackendService backendService})
@@ -12,7 +24,7 @@ class LlmEnrichmentService {
 
   /// Takes a raw computer-generated [AutoPlanResult] and asks the backend AI
   /// layer to write a title, overview, and descriptions for each day/stop.
-  Future<AutoPlanResult> enrich(AutoPlanResult rawResult) async {
+  Future<LlmEnrichmentOutcome> enrich(AutoPlanResult rawResult) async {
     try {
       final prompt = _buildPrompt(rawResult);
       log(
@@ -21,7 +33,7 @@ class LlmEnrichmentService {
       );
 
       final parsed = await _backendService.enrichAutoPlan(prompt: prompt);
-      return _applyLlmData(rawResult, parsed);
+      return LlmEnrichmentOutcome(result: _applyLlmData(rawResult, parsed));
     } catch (error, stackTrace) {
       log(
         'LlmEnrichmentService Error: $error',
@@ -30,7 +42,12 @@ class LlmEnrichmentService {
         stackTrace: stackTrace,
         level: 1000,
       );
-      return rawResult;
+      return LlmEnrichmentOutcome(
+        result: rawResult,
+        usedFallback: true,
+        errorMessage:
+            'AI chưa viết được phần mô tả. Lịch trình vẫn được tạo bằng thuật toán.',
+      );
     }
   }
 

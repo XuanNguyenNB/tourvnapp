@@ -1,127 +1,144 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/services/image_upload_service.dart';
+
 import '../../../destination/data/repositories/destination_repository.dart';
 import '../../../destination/domain/entities/destination.dart';
 import '../../../destination/presentation/providers/destination_provider.dart';
-import 'paginated_admin_provider.dart';
+import '../models/admin_list_state.dart';
 
-/// Page size for destination list pagination.
 const _kPageSize = 100;
 
-/// Paginated notifier for admin destination management.
-class AdminDestinationNotifier extends Notifier<PaginatedState<Destination>> {
+class AdminDestinationNotifier extends Notifier<AdminListState<Destination>> {
   late final DestinationRepository _repository;
 
   @override
-  PaginatedState<Destination> build() {
+  AdminListState<Destination> build() {
     _repository = ref.watch(destinationRepositoryProvider);
-    Future.microtask(() => loadNextPage());
-    return const PaginatedState<Destination>();
+    Future.microtask(refresh);
+    return const AdminListState<Destination>(
+      query: AdminListQuery(
+        pageSize: _kPageSize,
+        sortKey: 'name',
+        descending: false,
+      ),
+    );
   }
 
-  /// Load the next page of destinations from Firestore.
-  Future<void> loadNextPage() async {
-    final current = state;
-    if (current.isLoadingMore || !current.hasMore) return;
+  Future<void> refresh() async {
+    state = state.copyWith(
+      isInitialLoading: state.items.isEmpty,
+      isRefreshing: state.items.isNotEmpty,
+      isLoadingMore: false,
+      hasMore: true,
+      query: state.query.copyWith(clearCursor: true),
+      selectedIds: const {},
+      clearError: true,
+    );
+    await _load(reset: true);
+  }
 
-    state = current.copyWith(isLoadingMore: true);
+  Future<void> loadNextPage() => _load(reset: false);
+
+  Future<void> _load({required bool reset}) async {
+    final current = state;
+    if (!reset && (current.isLoadingMore || !current.hasMore)) return;
+
+    if (!reset) {
+      state = current.copyWith(isLoadingMore: true, clearError: true);
+    }
+
     try {
-      final result = await _repository.getDestinationsPaginated(
-        limit: _kPageSize,
-        startAfter: current.lastDoc,
+      final result = await _repository.fetchAdminDestinations(
+        limit: current.query.pageSize,
+        startAfter: reset ? null : current.query.cursor,
+        search: current.query.search,
       );
+
       state = current.copyWith(
-        items: [...current.items, ...result.items],
-        lastDoc: result.lastDoc,
-        hasMore: result.items.length >= _kPageSize,
-        isLoadingMore: false,
+        items: reset ? result.items : [...current.items, ...result.items],
+        query: current.query.copyWith(
+          cursor: result.lastDoc,
+          clearCursor: reset && result.lastDoc == null,
+        ),
         isInitialLoading: false,
+        isRefreshing: false,
+        isLoadingMore: false,
+        hasMore: current.query.hasSearch ? false : result.lastDoc != null,
+        clearError: true,
       );
-    } catch (e) {
+    } catch (error) {
       state = current.copyWith(
-        isLoadingMore: false,
-        error: e.toString(),
         isInitialLoading: false,
+        isRefreshing: false,
+        isLoadingMore: false,
+        errorMessage: error.toString(),
       );
     }
   }
 
-  /// Refresh: clear everything and reload from first page.
-  Future<void> refresh() async {
-    state = const PaginatedState<Destination>();
-    await loadNextPage();
+  void updateSearch(String value) {
+    state = state.copyWith(
+      query: state.query.copyWith(search: value.trim(), clearCursor: true),
+      selectedIds: const {},
+      hasMore: true,
+    );
+    Future.microtask(refresh);
+  }
+
+  void toggleSelection(String id) {
+    final next = {...state.selectedIds};
+    if (!next.add(id)) {
+      next.remove(id);
+    }
+    state = state.copyWith(selectedIds: next);
+  }
+
+  void toggleSelectAllVisible() {
+    final visibleIds = state.items.map((item) => item.id).toSet();
+    final allSelected =
+        visibleIds.isNotEmpty && state.selectedIds.containsAll(visibleIds);
+    state = state.copyWith(selectedIds: allSelected ? const {} : visibleIds);
+  }
+
+  void clearSelection() {
+    state = state.copyWith(selectedIds: const {});
   }
 
   Future<void> addDestination(Destination destination) async {
-    try {
-      await _repository.createDestination(destination);
-      state = state.copyWith(items: [...state.items, destination]);
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-      rethrow;
-    }
+    await _repository.createDestination(destination);
+    await refresh();
   }
 
   Future<void> updateDestinationData(Destination destination) async {
-    try {
-      await _repository.updateDestination(destination);
-      state = state.copyWith(
-        items: state.items.map((d) {
-          if (d.id == destination.id) {
-            return destination.copyWith(
-              postCount: d.postCount,
-              engagementCount: d.engagementCount,
-              locationCount: d.locationCount,
-            );
-          }
-          return d;
-        }).toList(),
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-      rethrow;
-    }
+    await _repository.updateDestination(destination);
+    await refresh();
   }
 
   Future<void> deleteDestinationData(String id) async {
-    try {
-      await _repository.deleteDestination(id);
-      try {
-        await ImageUploadService.deleteDestinationHero(id);
-      } on UnsupportedError {
-        // Non-web/test environments do not provide image storage cleanup.
-      }
-      state = state.copyWith(
-        items: state.items.where((d) => d.id != id).toList(),
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-      rethrow;
-    }
+    await _repository.deleteDestination(id);
+    await refresh();
   }
 
-  Future<void> deleteBatch(List<String> ids) async {
+  Future<AdminBulkActionResult> deleteBatch(List<String> ids) async {
+    if (ids.isEmpty) return AdminBulkActionResult.empty();
+
+    final errors = <String>[];
     try {
       await _repository.deleteDestinationBatch(ids);
-      for (final id in ids) {
-        try {
-          await ImageUploadService.deleteDestinationHero(id);
-        } on UnsupportedError {
-          // Non-web/test environments do not provide image storage cleanup.
-        }
-      }
-      final idSet = ids.toSet();
-      state = state.copyWith(
-        items: state.items.where((d) => !idSet.contains(d.id)).toList(),
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-      rethrow;
+    } catch (error) {
+      errors.add(error.toString());
     }
+
+    await refresh();
+    return AdminBulkActionResult(
+      processed: ids.length,
+      succeeded: errors.isEmpty ? ids.length : 0,
+      failed: errors.isEmpty ? 0 : ids.length,
+      errors: errors,
+    );
   }
 }
 
 final adminDestinationProvider =
-    NotifierProvider<AdminDestinationNotifier, PaginatedState<Destination>>(() {
+    NotifierProvider<AdminDestinationNotifier, AdminListState<Destination>>(() {
       return AdminDestinationNotifier();
     });

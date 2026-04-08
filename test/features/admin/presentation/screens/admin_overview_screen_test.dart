@@ -7,24 +7,29 @@ import 'package:tour_vn/features/admin/presentation/screens/admin_overview_scree
 void main() {
   final mockStats = AdminStats(
     totalUsers: 42,
-    totalDestinations: 5,
-    totalLocations: 120,
-    totalReviews: 300,
+    publishedDestinations: 5,
+    publishedLocations: 120,
+    publishedReviews: 300,
     pendingComments: 3,
+    flaggedComments: 4,
     pendingAiDrafts: 0,
-    recentActivities: [
-      {
-        'id': 'rev-1',
-        'title': 'Review Da Lat',
-        'type': 'review',
-        'createdAt': null,
-      },
-      {
-        'id': 'rev-2',
-        'title': 'Review Ninh Binh',
-        'type': 'review',
-        'createdAt': null,
-      },
+    contentMissingImage: 2,
+    contentMissingCoordinates: 7,
+    recentActivities: const [
+      AdminRecentActivity(
+        id: 'rev-1',
+        title: 'Review Da Lat',
+        subtitle: 'Bài viết mẫu',
+        type: 'review',
+        route: '/admin/reviews',
+      ),
+      AdminRecentActivity(
+        id: 'rev-2',
+        title: 'Review Ninh Binh',
+        subtitle: 'Bài viết mẫu',
+        type: 'review',
+        route: '/admin/reviews',
+      ),
     ],
   );
 
@@ -44,15 +49,15 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest(mockStats));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chào mừng trở lại, Admin'), findsOneWidget);
+    expect(find.text('Xin chào quản trị viên'), findsOneWidget);
     expect(find.text('42'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
     expect(find.text('120'), findsOneWidget);
     expect(find.text('300'), findsOneWidget);
     expect(find.text('Người dùng'), findsOneWidget);
-    expect(find.text('Điểm đến'), findsOneWidget);
-    expect(find.text('Địa điểm'), findsOneWidget);
-    expect(find.text('Bài viết'), findsOneWidget);
+    expect(find.text('Điểm đến đang public'), findsOneWidget);
+    expect(find.text('Địa điểm đang public'), findsOneWidget);
+    expect(find.text('Bài viết đang public'), findsOneWidget);
   });
 
   testWidgets('Should display recent activities', (tester) async {
@@ -67,16 +72,19 @@ void main() {
   testWidgets('Should show empty message when no activities', (tester) async {
     final emptyStats = AdminStats(
       totalUsers: 0,
-      totalDestinations: 0,
-      totalLocations: 0,
-      totalReviews: 0,
+      publishedDestinations: 0,
+      publishedLocations: 0,
+      publishedReviews: 0,
       pendingComments: 0,
+      flaggedComments: 0,
       pendingAiDrafts: 0,
+      contentMissingImage: 0,
+      contentMissingCoordinates: 0,
       recentActivities: const [],
     );
     await tester.pumpWidget(createWidgetUnderTest(emptyStats));
     await tester.pumpAndSettle();
 
-    expect(find.text('Không có hoạt động nào gần đây'), findsOneWidget);
+    expect(find.text('Chưa có hoạt động vận hành gần đây'), findsOneWidget);
   });
 }

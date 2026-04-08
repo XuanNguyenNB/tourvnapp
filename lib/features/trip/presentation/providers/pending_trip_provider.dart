@@ -28,6 +28,9 @@ class PendingTripState {
   /// AI-generated trip name (e.g., "Nha Trang biển xanh cát trắng").
   /// If null, a default name is generated from destinationName.
   final String? tripName;
+  final String? tripDescription;
+  final int aiEnrichedStopCount;
+  final bool isAiGenerated;
 
   /// Start date of the trip (optional, from date picker).
   final DateTime? startDate;
@@ -38,6 +41,9 @@ class PendingTripState {
     this.destinationId,
     this.destinationName,
     this.tripName,
+    this.tripDescription,
+    this.aiEnrichedStopCount = 0,
+    this.isAiGenerated = false,
     this.startDate,
   });
 
@@ -80,9 +86,13 @@ class PendingTripState {
     String? destinationId,
     String? destinationName,
     String? tripName,
+    String? tripDescription,
+    int? aiEnrichedStopCount,
+    bool? isAiGenerated,
     DateTime? startDate,
     bool clearStartDate = false,
     bool clearTripName = false,
+    bool clearTripDescription = false,
   }) {
     return PendingTripState(
       activities: activities ?? this.activities,
@@ -90,6 +100,11 @@ class PendingTripState {
       destinationId: destinationId ?? this.destinationId,
       destinationName: destinationName ?? this.destinationName,
       tripName: clearTripName ? null : (tripName ?? this.tripName),
+      tripDescription: clearTripDescription
+          ? null
+          : (tripDescription ?? this.tripDescription),
+      aiEnrichedStopCount: aiEnrichedStopCount ?? this.aiEnrichedStopCount,
+      isAiGenerated: isAiGenerated ?? this.isAiGenerated,
       startDate: clearStartDate ? null : (startDate ?? this.startDate),
     );
   }
@@ -207,6 +222,9 @@ class PendingTripNotifier extends Notifier<PendingTripState> {
     required String destinationId,
     required String destinationName,
     String? tripName,
+    String? tripDescription,
+    int aiEnrichedStopCount = 0,
+    bool isAiGenerated = false,
     DateTime? startDate,
   }) {
     final newActivities = <PendingActivity>[];
@@ -230,6 +248,7 @@ class PendingTripNotifier extends Notifier<PendingTripState> {
               orElse: () => TimeSlot.morning,
             ),
             addedAt: DateTime.now(),
+            notes: activity.notes,
           ),
         );
       }
@@ -241,6 +260,9 @@ class PendingTripNotifier extends Notifier<PendingTripState> {
       destinationId: destinationId,
       destinationName: destinationName,
       tripName: tripName,
+      tripDescription: tripDescription,
+      aiEnrichedStopCount: aiEnrichedStopCount,
+      isAiGenerated: isAiGenerated,
       startDate: startDate,
     );
   }

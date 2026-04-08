@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/recommendation_item.dart';
 import '../providers/recommendation_provider.dart';
+import 'recommendation_explainability_sheet.dart';
 import '../../../destination/domain/entities/location.dart';
 import '../../../destination/presentation/providers/location_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/router/app_router.dart';
+import 'package:go_router/go_router.dart';
 
 /// A horizontal scrollable section showing personalized recommendations.
 ///
@@ -91,7 +94,7 @@ class _RecommendedSectionContent extends StatelessWidget {
                 ),
                 SizedBox(width: 6),
                 Text(
-                  'AI',
+                  'AI cá nhân hóa',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -104,7 +107,7 @@ class _RecommendedSectionContent extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           SizedBox(
-            height: 180,
+            height: 210,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -113,7 +116,20 @@ class _RecommendedSectionContent extends StatelessWidget {
               itemBuilder: (context, index) {
                 final rec = recommendations[index];
                 final loc = locationMap[rec.locationId]!;
-                return _RecommendedCard(location: loc, reasons: rec.reasons);
+                return _RecommendedCard(
+                  location: loc,
+                  recommendation: rec,
+                  onViewLocation: () {
+                    context.pushNamed(
+                      AppRoutes.location,
+                      pathParameters: {
+                        'id': loc.destinationId,
+                        'locId': loc.id,
+                      },
+                      extra: loc,
+                    );
+                  },
+                );
               },
             ),
           ),
@@ -125,100 +141,129 @@ class _RecommendedSectionContent extends StatelessWidget {
 
 class _RecommendedCard extends StatelessWidget {
   final Location location;
-  final List<String> reasons;
+  final RecommendationItem recommendation;
+  final VoidCallback onViewLocation;
 
-  const _RecommendedCard({required this.location, required this.reasons});
+  const _RecommendedCard({
+    required this.location,
+    required this.recommendation,
+    required this.onViewLocation,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          SizedBox(
-            height: 100,
-            width: double.infinity,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.network(
-                  location.image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: const Color(0xFFF1F5F9),
-                    child: const Icon(Icons.image_outlined, size: 32),
-                  ),
-                ),
-                // Category badge
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      location.categoryEmoji,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ),
-              ],
+    return GestureDetector(
+      onTap: () {
+        showRecommendationExplainabilitySheet(
+          context: context,
+          location: location,
+          recommendation: recommendation,
+          onViewLocation: onViewLocation,
+        );
+      },
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 100,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Text(
-                    location.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
+                  Image.network(
+                    location.image,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFFF1F5F9),
+                      child: const Icon(Icons.image_outlined, size: 32),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  if (reasons.isNotEmpty)
-                    Text(
-                      reasons.first,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w500,
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        location.categoryEmoji,
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      location.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (recommendation.reasons.isNotEmpty)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: recommendation.reasons
+                            .take(2)
+                            .map(
+                              (reason) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF5F3FF),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  reason,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

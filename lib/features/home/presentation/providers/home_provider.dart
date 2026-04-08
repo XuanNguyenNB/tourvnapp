@@ -17,11 +17,11 @@ final homeContentProvider = FutureProvider<List<ContentItem>>((ref) async {
   final reviewRepo = ref.watch(reviewRepositoryProvider);
 
   // Fetch real data from Firestore
-  final destinations = await destRepo.getAllDestinations();
-  final reviews = await reviewRepo.getAllReviews();
+  final destinations = await destRepo.getPublishedDestinations();
+  final reviews = await reviewRepo.getPublishedReviews();
 
   // Fetch all locations for GPS resolution
-  final allLocations = await destRepo.getAllLocations();
+  final allLocations = await destRepo.getPublishedLocations();
   final locationMap = <String, Location>{};
   for (final loc in allLocations) {
     locationMap[loc.id] = loc;

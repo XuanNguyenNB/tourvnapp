@@ -13,6 +13,7 @@ import '../widgets/comment_section.dart';
 import '../../../trip/presentation/widgets/add_to_trip_gesture_wrapper.dart';
 import '../../../trip/presentation/widgets/day_picker_bottom_sheet.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../saved/presentation/widgets/bookmark_button.dart';
 
 /// Review Detail Screen displaying full review information.
 ///
@@ -313,19 +314,23 @@ class _ReviewDetailContentFromPreview extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Like button
-          _BottomPillButton(
-            child: AnimatedHeartButton(
-              reviewId: preview.id,
-              initialLikeCount: preview.likeCount,
-              initiallyLiked: false,
-              showCount: true,
-              iconSize: 20,
+          // Bookmark/Save button (outline pill)
+          Expanded(
+            flex: 2,
+            child: BookmarkButton(
+              itemId: preview.id,
+              itemType: 'review',
+              title: preview.title,
+              imageUrl: preview.heroImage,
+              destinationId: preview.destinationId,
+              destinationName: preview.destinationName,
+              style: BookmarkButtonStyle.pill,
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 10),
           // Add to Trip (highlighted gradient)
           Expanded(
+            flex: 3,
             child: GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -348,61 +353,26 @@ class _ReviewDetailContentFromPreview extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Icon(
                       Icons.add_circle_outline,
                       color: Colors.white,
                       size: 20,
                     ),
                     SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Thêm vào Trip',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      'Thêm vào Trip',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Share button
-          _BottomPillButton(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Clipboard.setData(
-                ClipboardData(text: 'https://tourvn.app/review/${preview.id}'),
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đã sao chép link bài review! 📎'),
-                  behavior: SnackBarBehavior.floating,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.share_outlined, size: 20, color: Color(0xFF64748B)),
-                SizedBox(width: 6),
-                Text(
-                  'Chia sẻ',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ],
             ),
           ),
         ],
@@ -434,6 +404,10 @@ class _ReviewDetailContent extends ConsumerWidget {
                       _buildReviewInfoRow(),
                       const SizedBox(height: 16),
                       _buildReviewText(),
+                      if (review.sourceReferences.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        _buildAiSourceReferences(),
+                      ],
                       const SizedBox(height: 32),
                       _RelatedLocationsSection(
                         locationIds: review.relatedLocationIds,
@@ -584,6 +558,59 @@ class _ReviewDetailContent extends ConsumerWidget {
     );
   }
 
+  Widget _buildAiSourceReferences() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Nguồn tham khảo AI',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...review.sourceReferences.map(
+          (reference) => Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  reference.title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  reference.domain?.isNotEmpty == true
+                      ? '${reference.domain} • ${reference.url}'
+                      : reference.url,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBottomActionBar(BuildContext context) {
     return Container(
       margin: EdgeInsets.fromLTRB(
@@ -608,19 +635,23 @@ class _ReviewDetailContent extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Like button
-          _BottomPillButton(
-            child: AnimatedHeartButton(
-              reviewId: review.id,
-              initialLikeCount: review.likeCount,
-              initiallyLiked: false,
-              showCount: true,
-              iconSize: 20,
+          // Bookmark/Save button (outline pill)
+          Expanded(
+            flex: 2,
+            child: BookmarkButton(
+              itemId: review.id,
+              itemType: 'review',
+              title: review.title,
+              imageUrl: review.heroImage,
+              destinationId: review.destinationId,
+              destinationName: review.destinationName,
+              style: BookmarkButtonStyle.pill,
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 10),
           // Add to Trip (highlighted gradient)
           Expanded(
+            flex: 3,
             child: GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -643,61 +674,26 @@ class _ReviewDetailContent extends ConsumerWidget {
                   ),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Icon(
                       Icons.add_circle_outline,
                       color: Colors.white,
                       size: 20,
                     ),
                     SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Thêm vào Trip',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      'Thêm vào Trip',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Share button
-          _BottomPillButton(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Clipboard.setData(
-                ClipboardData(text: 'https://tourvn.app/review/${review.id}'),
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đã sao chép link bài review! 📎'),
-                  behavior: SnackBarBehavior.floating,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.share_outlined, size: 20, color: Color(0xFF64748B)),
-                SizedBox(width: 6),
-                Text(
-                  'Chia sẻ',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ],
             ),
           ),
         ],
@@ -753,28 +749,8 @@ class _GlassActionButton extends StatelessWidget {
   }
 }
 
-/// Pill-shaped button for bottom action bar
-class _BottomPillButton extends StatelessWidget {
-  final Widget child;
-  final VoidCallback? onTap;
 
-  const _BottomPillButton({required this.child, this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: child,
-      ),
-    );
-  }
-}
 
 /// Related Locations carousel section
 class _RelatedLocationsSection extends ConsumerWidget {

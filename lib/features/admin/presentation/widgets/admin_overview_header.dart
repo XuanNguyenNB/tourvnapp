@@ -1,85 +1,76 @@
 import 'package:flutter/material.dart';
 
 class AdminOverviewHeader extends StatelessWidget {
-  const AdminOverviewHeader({super.key, required this.onRefresh});
+  const AdminOverviewHeader({
+    super.key,
+    required this.onRefresh,
+    this.adminName,
+  });
 
   final VoidCallback onRefresh;
+  final String? adminName;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedName = adminName?.trim().isNotEmpty == true
+        ? adminName!.trim()
+        : 'quản trị viên';
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
+        final compact = constraints.maxWidth < 900;
+        final copy = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Xin chào $resolvedName',
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Đây là bảng điều hành nội bộ để theo dõi nội dung, kiểm duyệt và các bản nháp AI.',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
+          ],
+        );
+
+        final refresh = FilledButton.icon(
+          onPressed: onRefresh,
+          icon: const Icon(Icons.refresh, size: 18),
+          label: const Text('Làm mới'),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF6366F1),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        );
 
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _HeaderCopy(),
-              const SizedBox(height: 16),
-              _RefreshButton(onRefresh: onRefresh),
-            ],
+            children: [copy, const SizedBox(height: 16), refresh],
           );
         }
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Expanded(child: _HeaderCopy()),
+            Expanded(child: copy),
             const SizedBox(width: 16),
-            _RefreshButton(onRefresh: onRefresh),
+            refresh,
           ],
         );
       },
-    );
-  }
-}
-
-class _HeaderCopy extends StatelessWidget {
-  const _HeaderCopy();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Chào mừng trở lại, Admin',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Dưới đây là tổng quan nền tảng hôm nay.',
-          style: TextStyle(color: Colors.grey[600], fontSize: 16),
-        ),
-      ],
-    );
-  }
-}
-
-class _RefreshButton extends StatelessWidget {
-  const _RefreshButton({required this.onRefresh});
-
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.refresh),
-      tooltip: 'Refresh',
-      onPressed: onRefresh,
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.white,
-        padding: const EdgeInsets.all(12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
-        ),
-      ),
     );
   }
 }

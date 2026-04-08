@@ -57,6 +57,7 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
   /// Temporarily store deleted activity for undo functionality.
   PendingActivity? _deletedActivity;
 
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +76,7 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(visualPlannerProvider);
+
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -205,6 +207,71 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
               ),
             ),
           ),
+          // Completion progress bar (only for saved trips with activities)
+          if (!state.isPending && trip.totalActivities > 0) ...[
+            const SizedBox(height: 12),
+            _buildCompletionProgressBar(state),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Build completion progress bar for saved trips.
+  Widget _buildCompletionProgressBar(VisualPlannerState state) {
+    final completed = state.totalCompletedCount;
+    final total = state.currentTrip?.totalActivities ?? 0;
+    final progress = state.completionProgress;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: progress >= 1.0
+            ? Colors.green.shade50
+            : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: progress >= 1.0
+              ? Colors.green.shade200
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            progress >= 1.0
+                ? Icons.check_circle
+                : Icons.checklist_rounded,
+            size: 20,
+            color: progress >= 1.0 ? Colors.green : AppColors.primary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            progress >= 1.0
+                ? 'Hoàn thành! 🎉'
+                : 'Tiến độ: $completed/$total',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: progress >= 1.0
+                  ? Colors.green.shade700
+                  : AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  progress >= 1.0 ? Colors.green : AppColors.primary,
+                ),
+                minHeight: 6,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -313,10 +380,21 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
       },
       onActivityDelete: _handleActivityDelete,
       onReorder: (oldIndex, newIndex) => _handleActivityReorder(
-        state.selectedDayNumber - 1, // Convert to 0-based dayIndex
+        state.selectedDayNumber - 1,
         oldIndex,
         newIndex,
       ),
+      // Only show completion toggle for saved trips
+      onActivityComplete: !state.isPending
+          ? (activity, isCompleted) {
+              ref.read(visualPlannerProvider.notifier).toggleActivityCompletion(
+                state.selectedDayNumber - 1,
+                activity.id,
+              );
+            }
+          : null,
+      // Show map button only for saved trips
+      showMapButton: !state.isPending,
     );
   }
 
@@ -337,50 +415,92 @@ class _VisualPlannerScreenState extends ConsumerState<VisualPlannerScreen> {
     }
   }
 
+  /// Temporarily store deleted activity info for undo (saved trips).
+  Activity? _deletedSavedActivity;
+  int? _deletedDayIndex;
+  int? _deletedOriginalIndex;
+
   /// Handle activity deletion with undo support.
   /// Returns true if delete succeeded, false to cancel the dismiss animation.
   Future<bool> _handleActivityDelete(Activity activity) async {
     final state = ref.read(visualPlannerProvider);
+    final dayIndex = state.selectedDayNumber - 1;
 
-    // For pending trips, find and store the pending activity for undo
     if (state.isPending) {
+      // --- Pending trip: delete from pending state ---
       final pendingState = ref.read(pendingTripProvider);
       final pendingActivity = pendingState.activities.firstWhere(
         (a) => a.id == activity.id,
         orElse: () => throw StateError('Activity not found in pending state'),
       );
 
-      // Store for undo
-      _deletedActivity = pendingActivity;
+      _deletedActivity = pendingActivity as PendingActivity?;
 
-      // Remove from pending state
       ref.read(pendingTripProvider.notifier).removeActivity(activity.id);
-
-      // Refresh visual planner to reflect changes
       ref.read(visualPlannerProvider.notifier).refresh();
 
-      // Show undo snackbar
       VisualPlannerSnackBars.showUndoDelete(
         context: context,
         activityName: activity.locationName,
         onUndo: _undoDelete,
       );
-
-      return true; // Delete succeeded, let Dismissible complete
+      return true;
     } else {
-      // Saved trips: show not supported message and CANCEL the dismiss
-      VisualPlannerSnackBars.showNotSupported(context);
-      return false; // Cancel the dismiss animation
+      // --- Saved trip: delete from Firestore ---
+      // Store info for undo
+      final currentActivities = state.activitiesForCurrentDay;
+      _deletedOriginalIndex = currentActivities.indexWhere(
+        (a) => a.id == activity.id,
+      );
+      _deletedDayIndex = dayIndex;
+
+      final removed = await ref
+          .read(visualPlannerProvider.notifier)
+          .removeActivityFromSavedTrip(dayIndex, activity.id);
+
+      if (removed != null) {
+        _deletedSavedActivity = removed;
+
+        VisualPlannerSnackBars.showUndoDelete(
+          context: context,
+          activityName: activity.locationName,
+          onUndo: _undoDeleteSaved,
+        );
+        return true;
+      } else {
+        VisualPlannerSnackBars.showError(
+          context,
+          message: 'Không thể xóa hoạt động',
+        );
+        return false;
+      }
     }
   }
 
-  /// Restore the last deleted activity.
+  /// Restore the last deleted activity (pending trips).
   void _undoDelete() {
     if (_deletedActivity == null) return;
     ref.read(pendingTripProvider.notifier).restoreActivity(_deletedActivity!);
     ref.read(visualPlannerProvider.notifier).refresh();
     HapticFeedback.lightImpact();
     _deletedActivity = null;
+  }
+
+  /// Restore the last deleted activity (saved trips).
+  void _undoDeleteSaved() {
+    if (_deletedSavedActivity == null ||
+        _deletedDayIndex == null ||
+        _deletedOriginalIndex == null) return;
+
+    ref.read(visualPlannerProvider.notifier).restoreActivityToSavedTrip(
+          _deletedDayIndex!,
+          _deletedSavedActivity!,
+          _deletedOriginalIndex!,
+        );
+    HapticFeedback.lightImpact();
+    _deletedSavedActivity = null;
+    _deletedDayIndex = null;
+    _deletedOriginalIndex = null;
   }
 
   /// Open current day's activities as a multi-stop route in Google Maps.

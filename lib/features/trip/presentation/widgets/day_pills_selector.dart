@@ -46,7 +46,7 @@ class _DayPillsSelectorState extends State<DayPillsSelector> {
   late ScrollController _scrollController;
 
   // Pill dimensions for scroll calculation
-  static const double _pillWidth = 80.0;
+  static const double _pillWidth = 90.0;
   static const double _pillGap = AppSpacing.sm;
 
   @override
@@ -153,7 +153,7 @@ class _DayPill extends StatelessWidget {
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
-            width: 80,
+            width: 90,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected ? AppColors.primary : AppColors.surface,

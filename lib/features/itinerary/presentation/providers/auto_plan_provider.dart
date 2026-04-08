@@ -32,12 +32,16 @@ class AutoPlanState {
   final bool isEnriching;
   final AutoPlanResult? result;
   final String? errorMessage;
+  final bool usedAlgorithmFallback;
+  final String? aiMessage;
 
   const AutoPlanState({
     this.isGenerating = false,
     this.isEnriching = false,
     this.result,
     this.errorMessage,
+    this.usedAlgorithmFallback = false,
+    this.aiMessage,
   });
 
   AutoPlanState copyWith({
@@ -45,12 +49,17 @@ class AutoPlanState {
     bool? isEnriching,
     AutoPlanResult? result,
     String? errorMessage,
+    bool? usedAlgorithmFallback,
+    String? aiMessage,
   }) {
     return AutoPlanState(
       isGenerating: isGenerating ?? this.isGenerating,
       isEnriching: isEnriching ?? this.isEnriching,
       result: result ?? this.result,
       errorMessage: errorMessage,
+      usedAlgorithmFallback:
+          usedAlgorithmFallback ?? this.usedAlgorithmFallback,
+      aiMessage: aiMessage,
     );
   }
 }
@@ -127,9 +136,13 @@ class AutoPlanNotifier extends Notifier<AutoPlanState> {
 
       // 4. Enrich with LLM
       final enrichService = ref.read(llmEnrichmentServiceProvider);
-      final enrichedResult = await enrichService.enrich(rawResult);
+      final enrichedOutcome = await enrichService.enrich(rawResult);
 
-      state = AutoPlanState(result: enrichedResult);
+      state = AutoPlanState(
+        result: enrichedOutcome.result,
+        usedAlgorithmFallback: enrichedOutcome.usedFallback,
+        aiMessage: enrichedOutcome.errorMessage,
+      );
     } catch (e) {
       state = AutoPlanState(errorMessage: 'Lỗi khi tạo lịch trình: $e');
     }

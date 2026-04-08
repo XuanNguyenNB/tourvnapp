@@ -37,7 +37,7 @@ class ImportJsonScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Import JSON',
+                        'Nhập JSON',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,

@@ -18,6 +18,12 @@ import 'package:tour_vn/features/itinerary/presentation/screens/ai_plan_screen.d
 import 'package:tour_vn/features/profile/presentation/screens/profile_screen.dart';
 import 'package:tour_vn/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:tour_vn/features/profile/presentation/screens/about_screen.dart';
+import 'package:tour_vn/features/profile/presentation/screens/update_preferences_screen.dart';
+import 'package:tour_vn/features/profile/presentation/screens/privacy_screen.dart';
+import 'package:tour_vn/features/profile/presentation/screens/help_screen.dart';
+import 'package:tour_vn/features/notification/presentation/screens/notification_center_screen.dart';
+import 'package:tour_vn/features/notification/presentation/screens/notification_settings_screen.dart';
+import 'package:tour_vn/features/saved/presentation/screens/saved_items_screen.dart';
 import 'package:tour_vn/features/auth/presentation/screens/login_screen.dart';
 import 'package:tour_vn/features/auth/presentation/screens/admin_login_screen.dart';
 import 'package:tour_vn/features/destination/presentation/screens/destination_hub_screen.dart'; // Story 3-2
@@ -124,7 +130,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      if (currentPath == '/login' && session != null && session.isSignedIn) {
+      if (currentPath == '/login' &&
+          session != null &&
+          session.isSignedIn &&
+          !session.isAnonymous) {
         return '/';
       }
 
@@ -181,6 +190,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           final location = state.extra as Location?;
           return LocationDetailScreen(locationId: locId, location: location);
         },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/notifications',
+        name: 'notifications',
+        builder: (context, state) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/saved',
+        name: 'saved',
+        builder: (context, state) => const SavedItemsScreen(),
       ),
 
       // Bottom tab navigation with persistent state
@@ -249,7 +270,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'ai-plan',
                     name: AppRoutes.aiPlan,
                     builder: (context, state) {
-                      return const AiPlanScreen();
+                      return AiPlanScreen(
+                        initialDestinationId:
+                            state.uri.queryParameters['destinationId'],
+                        initialDestinationName:
+                            state.uri.queryParameters['destinationName'],
+                      );
                     },
                   ),
                   GoRoute(
@@ -281,6 +307,28 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'about',
                     parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const AboutScreen(),
+                  ),
+                  GoRoute(
+                    path: 'preferences',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) =>
+                        const UpdatePreferencesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'privacy',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => const PrivacyScreen(),
+                  ),
+                  GoRoute(
+                    path: 'help',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => const HelpScreen(),
+                  ),
+                  GoRoute(
+                    path: 'notification-settings',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) =>
+                        const NotificationSettingsScreen(),
                   ),
                 ],
               ),
